@@ -1,70 +1,71 @@
-# 設計原則
+# Design Principles
 
-HUMQは、すべてを綺麗に保つための設計ではありません。汚れてよい場所を明確にし、歪んではいけない場所を守るための設計です。
+> Japanese: [03-design-principles.ja.md](03-design-principles.ja.md)
 
-## 原則1: 壊れてもよい、歪むな
+HUMQ is not a design for keeping everything clean. It is a design for deciding where mess is allowed and protecting the places that must not distort.
 
-HUMQでは、壊れることと歪むことを区別します。
+## Principle 1: Break, but Do Not Distort
 
-| 観点 | 壊れる | 歪む |
+HUMQ distinguishes breaking from distorting.
+
+| Viewpoint | Breaking | Distorting |
 | --- | --- | --- |
-| 原因 | 実装ミス、仕様変更、一時的な欠損 | 責務逸脱、層の混在、概念の崩壊 |
-| 修復性 | 修正できる | 修正が難しい |
-| HUMQでの扱い | 局所的なカオスとして許容する | 構造の破壊として避ける |
-| 主な修復場所 | Usecase | 構造全体 |
+| Cause | Implementation mistakes, requirement changes, temporary gaps | Responsibility leaks, mixed layers, conceptual collapse |
+| Repairability | Fixable | Hard to fix |
+| HUMQ treatment | Accepted as local chaos | Avoided as structural damage |
+| Main repair area | Usecase | The whole structure |
 
-Usecaseの中で業務要件が複雑になることはあります。それは現実のカオスを引き受けている状態です。
+Business requirements may become complex inside Usecase. That means Usecase is absorbing real-world chaos.
 
-一方で、HandlerがDB操作を始める、Moduleが他Moduleを呼び始める、Queryが書き込みを始める、といった状態は歪みです。歪みは一度入ると、コードの置き場所が人によって変わり、秩序が失われます。
+By contrast, Handler starting database operations, Module calling another Module, or Query starting writes are distortions. Once distortion enters the system, people begin placing code by personal preference, and order is lost.
 
-## 原則2: 自由を設計する
+## Principle 2: Design Freedom
 
-自由を完全に禁止すると、逸脱は別の場所に漏れます。HUMQでは、Usecaseを自由の場所として設計します。
+If freedom is fully forbidden, deviation leaks somewhere else. HUMQ designs Usecase as the place for freedom.
 
-Usecaseは次のものを引き受けます。
+Usecase absorbs:
 
-- 業務の例外
-- 一時的な仕様
-- 複雑な分岐
-- 複数Moduleの組み合わせ
-- 整合性の明示的な制御
+- Business exceptions
+- Temporary requirements
+- Complex branching
+- Combinations of multiple Modules
+- Explicit control of consistency
 
-この自由があるから、Handler、Module、Queryは比較的純粋に保てます。
+Because this freedom exists, Handler, Module, and Query can remain relatively pure.
 
-## 原則3: Moduleは世界の法則として扱う
+## Principle 3: Treat Module as the Laws of the World
 
-Moduleは、アプリケーション内部の安定した秩序です。
+Module is the stable order inside the application.
 
-Moduleは1テーブル、または1対象に閉じます。他のModuleを知りません。業務フローも知りません。Usecaseから呼ばれるための部品として、対象固有の操作を提供します。
+Module is closed around one table or one subject. It does not know other Modules. It does not know business flows. It provides subject-specific operations as a part called from Usecase.
 
-Moduleに例外的な業務都合を入れると、Moduleは再利用しにくくなります。さらに、その例外を必要としないUsecaseから見ても不自然な振る舞いになります。
+If exceptional business concerns are placed in Module, Module becomes harder to reuse. It also starts behaving unnaturally from the perspective of Usecases that do not need that exception.
 
-## 原則4: Queryは観測に徹する
+## Principle 4: Keep Query as Observation
 
-複数テーブルをまたぐ読み取りは、Moduleに押し込めません。Moduleの秩序は対象単位であり、横断的な読み取りとは性質が違うためです。
+Reads that span multiple tables should not be forced into Module. Module order is subject-based, while cross-subject reads have a different nature.
 
-Queryはこの横断性を受け入れるための層です。ただし、書き込みはしません。観測するだけです。
+Query is the layer that accepts this cross-cutting nature. But it does not write. It only observes.
 
-## 原則5: 整合性を隠さない
+## Principle 5: Do Not Hide Consistency
 
-HUMQは、整合性をUsecaseで明示します。
+HUMQ makes consistency explicit in Usecase.
 
-DDDのAggregateのように整合性を内部に閉じる設計は、理論的には強力です。しかし実務では、業務操作がUsecaseに閉じていることも多く、整合性を閉じ込めるほど再利用性が落ちる場合があります。
+Designs like DDD Aggregate, where consistency is enclosed internally, are theoretically powerful. In practice, however, business operations often live at the Usecase level, and enclosing consistency too deeply can reduce reusability.
 
-HUMQでは、どのModuleを組み合わせて整合性を保つのかをUsecaseに書きます。これは自動的な安全性を捨てる代わりに、構造の見通しと変更しやすさを得る選択です。
+In HUMQ, Usecase shows which Modules are combined to maintain consistency. This trades automatic safety for structural visibility and changeability.
 
-## 原則6: 責務境界を最優先する
+## Principle 6: Prioritize Responsibility Boundaries
 
-HUMQで最も重要なのは、各層の責務が揺れないことです。
+The most important thing in HUMQ is that each layer's responsibility stays stable.
 
-便利だからという理由で境界を越えると、短期的には速くても、長期的には置き場所の基準が失われます。
+Crossing a boundary because it is convenient may be fast in the short term, but it eventually destroys the criteria for where code belongs.
 
-迷ったときは、次の問いで判断します。
+When unsure, decide by asking these questions:
 
-| 問い | 置き場所 |
+| Question | Place |
 | --- | --- |
-| 外界からの入力と出力の話か | Handler |
-| 業務フローや整合性の話か | Usecase |
-| 1対象に閉じた操作か | Module |
-| 複数対象を横断する読み取りか | Query |
-
+| Is it about input/output from the outside world? | Handler |
+| Is it about business flow or consistency? | Usecase |
+| Is it an operation closed around one subject? | Module |
+| Is it a read that spans multiple subjects? | Query |

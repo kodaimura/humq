@@ -1,10 +1,10 @@
-# FastAPI Example
+# FastAPI構成例
 
-> Japanese: [06-fastapi-example.ja.md](06-fastapi-example.ja.md)
+> English: [06-fastapi-example.md](06-fastapi-example.md)
 
-This document shows an example structure for applying HUMQ with FastAPI.
+このドキュメントでは、FastAPIでHUMQを適用する場合の構成例を示します。
 
-## Directory Structure
+## ディレクトリ構成
 
 ```text
 app/
@@ -53,7 +53,7 @@ app/
     └── __init__.py
 ```
 
-## Handler Example
+## Handler例
 
 ```python
 # handlers/accounts.py
@@ -76,9 +76,9 @@ def signup_account(
     return AccountResponse.model_validate(account)
 ```
 
-Handler only receives the request, calls Usecase, and transforms the result into a response.
+Handlerはリクエストを受け、Usecaseを呼び、レスポンスへ変換するだけです。
 
-## Usecase Example
+## Usecase例
 
 ```python
 # usecases/accounts/signup.py
@@ -103,9 +103,9 @@ def signup(session, request):
         return account
 ```
 
-Usecase owns the business flow and transaction boundary. It is also responsible for combining multiple Modules.
+Usecaseは業務フローとトランザクション境界を持ちます。複数Moduleを組み合わせる責務もUsecaseにあります。
 
-## Module Example
+## Module例
 
 ```python
 # modules/account/module.py
@@ -124,11 +124,11 @@ def create(session, email: str, name: str):
     return account
 ```
 
-Module provides operations closed around the Account subject. It does not call other Modules and does not manage transactions.
+ModuleはAccountという対象に閉じた操作を提供します。他のModuleは呼びません。トランザクションも管理しません。
 
-Repository is not required. If ORM operations are readable enough inside Module, keep them there. Extract persistence code only as an internal helper inside Module when it grows too large.
+Repositoryは必須ではありません。ORM操作がModule内で十分に読めるなら、そのままModuleに書きます。永続化処理が大きくなった場合だけ、Module内部の補助として切り出します。
 
-## Query Example
+## Query例
 
 ```python
 # queries/account_orders.py
@@ -143,17 +143,17 @@ def list_account_orders(session, account_id: int):
     )
 ```
 
-Query is read-only. It handles cross-cutting observation such as joins and aggregations.
+Queryは読み取り専用です。JOINや集計のような横断的な観測を担当します。
 
-## Placement Guide
+## 判断基準
 
-When unsure during implementation, use these criteria:
+実装中に迷ったら、次の基準で置き場所を決めます。
 
-| Concern | Place |
+| 処理 | 置き場所 |
 | --- | --- |
-| API input and output | Handler |
-| Business procedure | Usecase |
-| Transaction boundary | Usecase |
-| Operation closed around one table | Module |
-| Simple database access | Module |
-| Read spanning multiple tables | Query |
+| APIの入力と出力 | Handler |
+| 業務手続き | Usecase |
+| トランザクション境界 | Usecase |
+| 1テーブルに閉じた操作 | Module |
+| DBへの単純アクセス | Module |
+| 複数テーブルをまたぐ読み取り | Query |

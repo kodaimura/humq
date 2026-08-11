@@ -1,71 +1,73 @@
-# 既存アーキテクチャとの比較
+# Comparison with Existing Architectures
 
-HUMQは、MVC、レイヤードアーキテクチャ、クリーンアーキテクチャ、DDDを否定するものではありません。それらが実務で曖昧になりやすい責務境界を、より固定的に扱う設計です。
+> Japanese: [05-comparison.ja.md](05-comparison.ja.md)
 
-## 既存設計で起きやすい問題
+HUMQ does not reject MVC, layered architecture, clean architecture, or DDD. It is a design that treats responsibility boundaries more explicitly where those architectures often become ambiguous in practice.
 
-### ServiceとRepositoryの粒度が揺れる
+## Common Problems in Existing Designs
 
-Serviceに業務ロジックを書くのか、Repositoryにどこまで賢さを持たせるのかは、プロジェクトや開発者によって解釈が変わりやすい部分です。
+### Service and Repository Granularity Drifts
 
-結果として、Serviceが肥大化したり、Repositoryが業務判断を持ち始めたりします。
+Whether business logic belongs in Service, and how much intelligence Repository should have, often varies by project or developer.
 
-### Controllerが太る
+As a result, Service grows too large, or Repository begins to hold business decisions.
 
-下層の責務が曖昧だと、処理の逃げ場がControllerに向かいます。
+### Controller Becomes Too Large
 
-Validation、条件分岐、DB操作、レスポンス整形が混在すると、Controllerは外界の入口ではなく、業務処理の本体になってしまいます。
+When lower-layer responsibilities are vague, logic tends to escape into Controller.
 
-HUMQでは、この層をHandlerと呼び、入出力に責務を限定します。
+If validation, branching, database operations, and response shaping are mixed together, Controller stops being an entry point and becomes the body of the business process.
 
-### Domainが現実の例外で汚れる
+In HUMQ, this layer is called Handler, and its responsibility is limited to input and output.
 
-DDDではDomainやAggregateが強い秩序を持ちます。しかし現実の業務は、例外、暫定対応、組織都合、画面都合を含みます。
+### Domain Gets Polluted by Real-World Exceptions
 
-それらをDomainへ入れると、長期的に純度を保ちにくくなります。
+In DDD, Domain and Aggregate hold strong order. But real business systems include exceptions, temporary measures, organizational constraints, and UI-driven needs.
 
-HUMQでは、現実の例外はUsecaseで受け止め、Moduleの秩序を守ります。
+If those are placed in Domain, it becomes difficult to preserve purity over time.
 
-## HUMQの整理
+In HUMQ, real-world exceptions are absorbed by Usecase, while Module's order is protected.
 
-| よくある層 | HUMQでの扱い |
+## HUMQ Mapping
+
+| Common layer | HUMQ treatment |
 | --- | --- |
-| Controller | Handler。入出力に限定する |
-| Service | UsecaseとModuleに分ける |
-| Domain | Moduleの対象固有の秩序として扱う |
-| Repository | 必須層ではない。必要ならModule内部の補助として扱う |
-| Read Model / Report | Queryとして読み取り専用に分離する |
+| Controller | Handler, limited to input/output |
+| Service | Split into Usecase and Module |
+| Domain | Treated as subject-specific order inside Module |
+| Repository | Not required; used only as an internal helper inside Module when needed |
+| Read Model / Report | Separated as read-only Query |
 
-## HUMQが強い場面
+## Where HUMQ Works Well
 
-HUMQは、次のようなシステムで特に効果を発揮します。
+HUMQ is especially effective in systems like these:
 
-- 業務フローが多い。
-- 例外処理や暫定対応が避けられない。
-- テーブル数が増えやすい。
-- 複数テーブルをまたぐ一覧、検索、集計が多い。
-- 開発者が増えても置き場所を揃えたい。
-- 長期運用で責務境界を保ちたい。
+- Many business flows.
+- Unavoidable exception handling and temporary measures.
+- A growing number of tables.
+- Many lists, searches, and aggregations spanning multiple tables.
+- A need to keep code placement consistent as the team grows.
+- A need to preserve responsibility boundaries during long-term operation.
 
-## HUMQが要求するもの
+## What HUMQ Requires
 
-HUMQは、Usecaseに自由を与えます。そのため、Usecaseを書く人には責任が必要です。
+HUMQ gives freedom to Usecase. Therefore, the person writing Usecase must take responsibility.
 
-- 整合性をUsecaseで明示する。
-- Moduleを都合よく汚さない。
-- Queryを読み取り専用に保つ。
-- Handlerを薄く保つ。
-- 便利さより責務境界を優先する。
+- Make consistency explicit in Usecase.
+- Do not pollute Module for convenience.
+- Keep Query read-only.
+- Keep Handler thin.
+- Prioritize responsibility boundaries over convenience.
 
-HUMQの弱点は、整合性が自動的に守られるわけではないことです。しかし、その弱点は同時に強みでもあります。整合性が隠れず、業務意志としてコード上に現れるためです。
+HUMQ's weakness is that consistency is not automatically protected. But that weakness is also its strength: consistency is not hidden, and it appears in code as business intent.
 
-## 比較表
+## Comparison Table
 
-| 観点 | 一般的なレイヤード構造 | DDD | HUMQ |
+| Viewpoint | Common layered structure | DDD | HUMQ |
 | --- | --- | --- | --- |
-| 責務境界 | Serviceが曖昧になりやすい | Aggregate設計に依存する | 4層で固定する |
-| 業務例外 | ServiceやDomainに散らばりやすい | Domainを汚しやすい | Usecaseが引き受ける |
-| 読み取り横断 | RepositoryやServiceに混ざりやすい | Read Model設計が別途必要 | Queryに分離する |
-| トランザクション | Serviceに置かれがち | Aggregate単位 | Usecase単位 |
-| 再利用性 | Service粒度に依存する | Aggregate境界に依存する | Module単位で保ちやすい |
-| 長期運用 | 人によって崩れやすい | 設計難度が高い | 置き場所の迷いを減らす |
+| Responsibility boundaries | Service often becomes ambiguous | Depends on Aggregate design | Fixed by four layers |
+| Business exceptions | Easily scattered across Service or Domain | Can pollute Domain | Absorbed by Usecase |
+| Cross-cutting reads | Easily mixed into Repository or Service | Requires separate Read Model design | Separated into Query |
+| Transactions | Often placed in Service | Aggregate unit | Usecase unit |
+| Reusability | Depends on Service granularity | Depends on Aggregate boundaries | Easier to preserve at Module level |
+| Long-term operation | Often drifts by developer | Design difficulty is high | Reduces ambiguity about where code belongs |

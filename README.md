@@ -1,48 +1,52 @@
-# HUMQ - カオスを設計するアーキテクチャ
+# HUMQ - Designing Chaos in Architecture
 
 <img align="right" src="assets/logo.png" alt="HUMQ logo" width="190">
 
-HUMQは、Handler / Usecase / Module / Query の4層で、アプリケーションを整理する<br>
-ソフトウェアアーキテクチャの設計原則です。<br>
-現実の業務に必ず存在する例外や変更を排除するのではなく、どこに置くべきかを明確にします。<br>
+> 日本語版はこちら: [README.ja.md](README.ja.md)
 
-Handlerは外界との接点を受け持ち、<br>
-Usecaseは業務上の意志と複雑さを引き受けます。<br>
-Moduleは1つの対象に閉じた内部秩序を守り、<br>
-Queryは複数の対象を横断する読み取りを観測として扱います。
+HUMQ is a software architecture principle for organizing application code into four layers:<br>
+Handler, Usecase, Module, and Query.<br>
+It does not try to eliminate the exceptions and changes that inevitably exist in real business systems.<br>
+Instead, it defines where that complexity should live.
 
-HUMQが重視するのは、完全に壊れないことではありません。<br>
-壊れたときにどこを片付ければよいかが分かり、責務境界が歪まないことです。<br>
+Handler owns the boundary with the outside world.<br>
+Usecase carries business intent, orchestration, consistency, and transaction boundaries.<br>
+Module protects local internal order around a single subject.<br>
+Query observes the system through joins, aggregations, and cross-subject reads.
 
-> すべてを秩序化するのではなく、秩序の中に必要なカオスを許す。
+HUMQ is not about making systems impossible to break.<br>
+It is about knowing where to clean up when they do break,<br>
+while keeping responsibility boundaries from distorting.
 
-## ドキュメント
+> Do not force everything into order. Allow the necessary chaos inside the order.
 
-- [HUMQの概要](docs/01-overview.md)
-- [層と責務のルール](docs/02-layer-rules.md)
-- [設計原則](docs/03-design-principles.md)
-- [整合性とトランザクション](docs/04-consistency-and-transactions.md)
-- [既存アーキテクチャとの比較](docs/05-comparison.md)
-- [FastAPI構成例](docs/06-fastapi-example.md)
+## Documentation
 
-## HUMQの一文定義
+- [Overview](docs/01-overview.md)
+- [Layer rules](docs/02-layer-rules.md)
+- [Design principles](docs/03-design-principles.md)
+- [Consistency and transactions](docs/04-consistency-and-transactions.md)
+- [Comparison with existing architectures](docs/05-comparison.md)
+- [FastAPI example](docs/06-fastapi-example.md)
 
-HUMQは、秩序を守る層とカオスを引き受ける層を明確に分けることで、壊れても片付けやすく、歪みにくい構造を作るための設計です。
+## One-Sentence Definition
 
-## 4層の役割
+HUMQ separates the layers that protect order from the layers that absorb chaos, creating a structure that is easy to clean up and hard to distort.
 
-| 層 | 役割 | 主な責務 |
+## Four Layers
+
+| Layer | Role | Main responsibility |
 | --- | --- | --- |
-| Handler | 外界の入口 | HTTPやイベントを受け、入出力を変換する |
-| Usecase | 意志と現実 | 業務フロー、整合性、トランザクションを扱う |
-| Module | 内部秩序 | ORMなどを使い、1テーブルまたは1対象に閉じた操作を提供する |
-| Query | 観測 | JOIN、集計、横断的な読み取りを担当する |
+| Handler | Boundary | Receives HTTP requests or events and transforms input/output |
+| Usecase | Intent and reality | Handles business flows, consistency, and transactions |
+| Module | Internal order | Provides operations closed around one table or one subject |
+| Query | Observation | Handles joins, aggregations, and cross-subject reads |
 
-## 基本方針
+## Basic Principles
 
-- Handlerは薄く保つ。
-- Usecaseは現実の複雑さを引き受ける。
-- Moduleは1つの対象に閉じ、他のModuleを知らない。
-- Queryは読み取り専用にし、書き込みやトランザクションを持たない。
-- トランザクション境界はUsecaseに置く。
-- 壊れることは許すが、責務境界が歪むことは許さない。
+- Keep Handler thin.
+- Let Usecase absorb real-world complexity.
+- Keep Module closed around one subject, unaware of other Modules.
+- Keep Query read-only, with no writes or transactions.
+- Put transaction boundaries in Usecase.
+- Allow breakage, but do not allow responsibility boundaries to distort.

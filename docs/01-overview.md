@@ -1,58 +1,60 @@
-# HUMQの概要
+# HUMQ Overview
 
-HUMQは、Handler / Usecase / Module / Query から成るアーキテクチャです。
+> Japanese: [01-overview.ja.md](01-overview.ja.md)
 
-MVC、レイヤードアーキテクチャ、クリーンアーキテクチャ、DDDが抱えがちな「責務境界の曖昧さ」を避けるために、コードの置き場所を4つの責務へ分解します。
+HUMQ is an architecture made of four layers: Handler, Usecase, Module, and Query.
 
-## HUMQが解く問題
+It decomposes application code into four responsibilities to avoid the ambiguous boundaries that often appear in MVC, layered architecture, clean architecture, and DDD.
 
-既存の設計では、次の迷いが起きやすくなります。
+## The Problem HUMQ Solves
 
-- Controllerにどこまで書いてよいのか。
-- ServiceとRepositoryの境界はどこか。
-- Domainに業務例外を入れるべきか。
-- 複数テーブルをまたぐ読み取りはどこに置くべきか。
-- トランザクションは誰が管理するべきか。
+In common architectures, teams often run into questions like these:
 
-HUMQはこの迷いを、層ごとの責務を固定することで減らします。
+- How much logic is acceptable in a Controller?
+- Where is the boundary between Service and Repository?
+- Should business exceptions live in the Domain?
+- Where should reads that span multiple tables be placed?
+- Who should manage transactions?
 
-## 基本思想
+HUMQ reduces this ambiguity by fixing the responsibility of each layer.
 
-HUMQの中心にあるのは、秩序とカオスの分離です。
+## Core Idea
 
-- 秩序を守る場所を決める。
-- カオスを受け入れる場所を決める。
-- 横断的な観測を読み取り専用として隔離する。
-- 整合性は隠さず、Usecaseで明示する。
+At the center of HUMQ is the separation of order and chaos.
 
-HUMQは「壊れない設計」ではありません。現実の仕様変更や例外によって壊れることはあります。ただし、壊れる場所がUsecaseへ寄るため、片付ける範囲が限定されます。
+- Decide where order is protected.
+- Decide where chaos is accepted.
+- Isolate cross-cutting observation as read-only Query code.
+- Do not hide consistency; make it explicit in Usecase.
 
-## 4層の全体像
+HUMQ is not a design that never breaks. Real requirements, changes, and exceptions can still break parts of the system. The point is that breakage tends to gather in Usecase, so the cleanup area stays limited.
 
-| 層 | 世界観 | ファイル命名 | トランザクション | 書き込み |
+## Four-Layer Overview
+
+| Layer | Worldview | File naming | Transactions | Writes |
 | --- | --- | --- | --- | --- |
-| Handler | 外界の秩序 | 複数形の名詞 | 持たない | 直接しない |
-| Usecase | 意志、業務単位 | 動詞 | 持つ | Moduleを通じて行う |
-| Module | 内部の法則 | 単数形の名詞 | 持たない | ORMなどを使って行う |
-| Query | 観測、構造的カオス | 業務文脈名 | 持たない | しない |
+| Handler | External order | Plural nouns | No | Not directly |
+| Usecase | Intent, business unit | Verbs | Yes | Through Module |
+| Module | Internal laws | Singular nouns | No | Through ORM or similar tools |
+| Query | Observation, structural chaos | Business context names | No | No |
 
-## 依存の考え方
+## Dependency Model
 
-HUMQでは、基本的に次の流れで処理します。
+In HUMQ, processing usually flows like this:
 
 ```text
 Handler -> Usecase -> Module
                    -> Query
 ```
 
-HandlerはUsecaseを呼びます。Usecaseは必要なModuleやQueryを組み合わせます。ModuleはORMなどの永続化手段を使い、対象に閉じた操作を提供します。Queryは複数テーブルの読み取りや集計を担当します。
+Handler calls Usecase. Usecase combines the Modules and Queries it needs. Module uses persistence tools such as an ORM and provides operations closed around one subject. Query handles reads and aggregations that span multiple tables.
 
-重要なのは、Module同士を直接依存させないことです。複数のModuleを組み合わせる必要がある場合、その責務はUsecaseにあります。
+The important rule is that Modules should not directly depend on each other. When multiple Modules need to be combined, that responsibility belongs to Usecase.
 
-## HUMQで守るもの
+## What HUMQ Protects
 
-HUMQが守るのは完全な整合性ではなく、説明可能な秩序です。
+HUMQ protects explainable order, not perfect automatic consistency.
 
-整合性をすべてDomainやAggregateに閉じ込めるのではなく、Usecaseに出します。どのModuleをどの順序で組み合わせ、どの範囲をトランザクションとして扱うのかを、コード上で見えるようにします。
+Instead of hiding all consistency inside a Domain or Aggregate, HUMQ exposes it in Usecase. The code shows which Modules are combined, in what order, and which range is treated as a transaction.
 
-その代わり、設計者と実装者はUsecaseに責任を持つ必要があります。Usecaseは自由な層ですが、無秩序にしてよい層ではありません。
+In exchange, designers and implementers must take responsibility for Usecase. Usecase is a flexible layer, but it is not a layer where anything goes.

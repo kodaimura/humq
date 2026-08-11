@@ -1,30 +1,32 @@
-# 層と責務のルール
+# Layer Rules
 
-このドキュメントでは、HUMQの各層に置くもの、置かないもの、命名規則を定義します。
+> Japanese: [02-layer-rules.ja.md](02-layer-rules.ja.md)
+
+This document defines what belongs in each HUMQ layer, what does not, and how files should be named.
 
 ## Handler
 
-Handlerは外界の入口です。HTTPリクエスト、イベント、CLI入力など、アプリケーション外部から来た入力を受け取り、Usecaseへ渡します。
+Handler is the entry point from the outside world. It receives inputs such as HTTP requests, events, or CLI commands, then passes them to Usecase.
 
-### 置くもの
+### Belongs Here
 
-- ルーティング
-- リクエストの受け取り
-- レスポンスの整形
-- 入出力スキーマとの接続
-- 認証済みユーザーなど、外界から得た文脈の受け渡し
+- Routing
+- Receiving requests
+- Shaping responses
+- Connecting input/output schemas
+- Passing context obtained from the outside world, such as the authenticated user
 
-### 置かないもの
+### Does Not Belong Here
 
-- 業務ロジック
-- DB操作
-- トランザクション管理
-- 複数Moduleの組み合わせ
-- 集計やJOINの組み立て
+- Business logic
+- Database operations
+- Transaction management
+- Combining multiple Modules
+- Building aggregations or joins
 
-### 命名
+### Naming
 
-Handlerのファイル名はURLリソースに合わせ、複数形の名詞にします。
+Handler filenames should match URL resources and use plural nouns.
 
 ```text
 handlers/
@@ -36,27 +38,27 @@ handlers/
 
 ## Usecase
 
-Usecaseは業務上の意志を表す層です。複数のModuleを組み合わせ、現実の例外、分岐、整合性、トランザクションを引き受けます。
+Usecase represents business intent. It combines multiple Modules and absorbs real-world exceptions, branches, consistency, and transaction boundaries.
 
-### 置くもの
+### Belongs Here
 
-- 業務フロー
-- 条件分岐
-- 複数Moduleの組み合わせ
-- Queryの利用
-- トランザクション境界
-- 例外的な業務要件
+- Business flows
+- Conditional branches
+- Combining multiple Modules
+- Using Query
+- Transaction boundaries
+- Exceptional business requirements
 
-### 置かないもの
+### Does Not Belong Here
 
-- HTTPリクエストやレスポンスへの直接依存
-- 生SQLによる横断的な読み取り
-- ORMモデルへの直接依存
-- `commit` / `rollback` をModuleへ委譲する設計
+- Direct dependency on HTTP requests or responses
+- Cross-cutting reads written as raw SQL
+- Direct dependency on ORM models
+- Designs that delegate `commit` / `rollback` to Module
 
-### 命名
+### Naming
 
-UsecaseのディレクトリはHandlerと同じく複数形のリソース名にします。各Usecaseファイルは動詞または動詞句にします。
+Usecase directories should use plural resource names, like Handler. Each Usecase file should be a verb or verb phrase.
 
 ```text
 usecases/
@@ -70,30 +72,30 @@ usecases/
     └── archive.py
 ```
 
-`usecases/accounts/signup.py` は、ディレクトリが文脈を語るため十分です。`register_user.py` のように対象を重ねる命名は避けます。
+`usecases/accounts/signup.py` is enough because the directory already provides the context. Avoid repeating the target in names like `register_user.py`.
 
 ## Module
 
-Moduleは内部秩序を担当します。原則として、1テーブルまたは1対象に閉じた操作を提供します。
+Module owns internal order. As a rule, it provides operations closed around one table or one subject.
 
-### 置くもの
+### Belongs Here
 
-- 対象に閉じた取得、作成、更新、削除
-- 対象固有の不変条件
-- ORMなどを使った意味のある操作
-- 外部連携を1対象として扱う薄い操作
+- Reads, creates, updates, and deletes closed around one subject
+- Subject-specific invariants
+- Meaningful operations implemented with an ORM or similar tool
+- Thin operations that treat an external integration as one subject
 
-### 置かないもの
+### Does Not Belong Here
 
-- 複数Moduleをまたぐ業務フロー
-- Usecaseの都合による一時的な条件分岐
-- トランザクション管理
-- 他Moduleへの直接依存
-- JOINや集計を中心にした読み取り
+- Business flows spanning multiple Modules
+- Temporary branches driven by a specific Usecase
+- Transaction management
+- Direct dependency on other Modules
+- Reads centered on joins or aggregations
 
-### 命名
+### Naming
 
-Module名は単数形の名詞にします。
+Module names should be singular nouns.
 
 ```text
 modules/
@@ -107,40 +109,40 @@ modules/
     └── module.py
 ```
 
-### Repositoryについて
+### About Repository
 
-RepositoryはHUMQの必須層ではありません。ModuleがORMを直接扱ってよいです。
+Repository is not a required HUMQ layer. Module may use an ORM directly.
 
-永続化処理が増えすぎる場合や、ORM以外のストレージを隠したい場合だけ、Module内部の補助ファイルとして`repository.py`を切り出します。その場合でもRepositoryは外部公開する層ではなく、Usecaseから直接呼びません。
+Only extract `repository.py` as an internal helper inside Module when persistence code grows too large or when you need to hide storage other than an ORM. Even then, Repository is not a public layer and should not be called directly from Usecase.
 
 ## Query
 
-Queryは読み取り専用の観測層です。複数テーブルを横断するJOIN、集計、レポート、一覧表示のための読み取りを担当します。
+Query is a read-only observation layer. It handles joins, aggregations, reports, and list reads that span multiple tables.
 
-### 置くもの
+### Belongs Here
 
 - JOIN
-- 集計
-- レポート取得
-- 検索画面用の読み取り
-- 複数Moduleを横断する読み取り
+- Aggregations
+- Report retrieval
+- Reads for search screens
+- Reads that span multiple Modules
 
-### 置かないもの
+### Does Not Belong Here
 
-- 書き込み
-- トランザクション管理
-- 業務状態の変更
-- Moduleの代わりになるCRUD
+- Writes
+- Transaction management
+- Changes to business state
+- CRUD that replaces Module
 
-### 命名
+### Naming
 
-Queryはエンティティ名ではなく、観測対象や業務文脈で命名します。
+Query should be named by what it observes or by business context, not by entity name.
 
-| 観測対象 | ファイル名 |
+| Observation target | Filename |
 | --- | --- |
-| アカウントの注文履歴 | `account_orders.py` |
-| プロジェクト進行状況 | `project_progress.py` |
-| 売上集計 | `sales_report.py` |
-| ユーザー行動全体 | `activity_overview.py` |
+| Account order history | `account_orders.py` |
+| Project progress | `project_progress.py` |
+| Sales summary | `sales_report.py` |
+| Overall user activity | `activity_overview.py` |
 
-Queryは「どのテーブルか」ではなく「何を観測しているか」を語る層です。
+Query describes what it observes, not which table it comes from.

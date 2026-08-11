@@ -1,43 +1,45 @@
-# 整合性とトランザクション
+# Consistency and Transactions
 
-HUMQでは、整合性とトランザクションをUsecaseの責務として扱います。
+> Japanese: [04-consistency-and-transactions.ja.md](04-consistency-and-transactions.ja.md)
 
-## 基本ルール
+In HUMQ, consistency and transactions are Usecase responsibilities.
 
-- トランザクションはUsecaseで開始し、Usecaseで終える。
-- Moduleは`commit`や`rollback`を呼ばない。
-- Repositoryを切り出す場合も、`commit`や`rollback`を呼ばない。
-- 複数Moduleをまたぐ整合性はUsecaseに明示する。
-- Queryは読み取り専用であり、トランザクション境界を持たない。
+## Basic Rules
 
-## なぜUsecaseに置くのか
+- Start and end transactions in Usecase.
+- Module does not call `commit` or `rollback`.
+- Even if Repository is extracted, it does not call `commit` or `rollback`.
+- Make consistency across multiple Modules explicit in Usecase.
+- Query is read-only and has no transaction boundary.
 
-トランザクションは、複数の秩序を一時的に束ねる操作です。
+## Why Transactions Belong in Usecase
 
-Moduleは1対象に閉じた秩序です。Moduleがトランザクションを管理すると、そのModuleを使うUsecase全体の整合性を外から制御しにくくなります。
+A transaction is an operation that temporarily binds multiple forms of order.
 
-Usecaseがトランザクションを持つことで、次のことが明確になります。
+Module is an order closed around one subject. If Module manages transactions, it becomes difficult for the surrounding Usecase to control consistency across the whole operation.
 
-- どの操作が1つの業務単位なのか。
-- どのModuleを組み合わせているのか。
-- どの範囲を成功または失敗として扱うのか。
-- どの整合性を意図的に守っているのか。
+When Usecase owns transactions, the following become explicit:
 
-## DDDとの違い
+- Which operations form one business unit.
+- Which Modules are combined.
+- Which range succeeds or fails as one unit.
+- Which consistency rules are intentionally protected.
 
-DDDでは、Aggregate Rootが整合性を守ります。HUMQでは、Usecaseが整合性を明示します。
+## Difference from DDD
 
-| 観点 | DDD | HUMQ |
+In DDD, the Aggregate Root protects consistency. In HUMQ, Usecase makes consistency explicit.
+
+| Viewpoint | DDD | HUMQ |
 | --- | --- | --- |
-| 整合性の責務 | Aggregate | Usecase |
-| トランザクション境界 | Aggregate単位 | Usecase単位 |
-| 柔軟性 | 境界に強く依存する | Moduleを組み合わせやすい |
-| 可視性 | 内部に隠れる | コード上に見える |
-| 再利用性 | Aggregateに閉じやすい | Module単位で使いやすい |
+| Consistency responsibility | Aggregate | Usecase |
+| Transaction boundary | Aggregate unit | Usecase unit |
+| Flexibility | Strongly depends on boundaries | Easy to combine Modules |
+| Visibility | Hidden inside | Visible in code |
+| Reusability | Tends to stay inside Aggregate | Easier at Module level |
 
-HUMQは、自動的な整合性よりも、明示的な秩序を優先します。
+HUMQ prioritizes explicit order over automatic consistency.
 
-## 実装イメージ
+## Implementation Sketch
 
 ```python
 # usecases/accounts/assign_role.py
@@ -60,11 +62,11 @@ def assign_role(session, account_id: int, role_id: int) -> None:
         )
 ```
 
-このUsecaseでは、Account、Role、AccountRole、AuditLogの秩序を1つの業務意志として束ねています。
+This Usecase binds the order of Account, Role, AccountRole, and AuditLog into one business intent.
 
-## 避ける例
+## Examples to Avoid
 
-### Moduleがcommitする
+### Module Commits
 
 ```python
 # modules/account/module.py
@@ -76,9 +78,9 @@ def create(session, name: str):
     return account
 ```
 
-この設計では、Usecaseが複数Moduleを1トランザクションにまとめられません。Moduleが勝手に境界を閉じてしまうためです。
+With this design, Usecase cannot combine multiple Modules into one transaction because Module closes the boundary on its own.
 
-### 永続化補助が業務整合性を持つ
+### Persistence Helper Owns Business Consistency
 
 ```python
 # modules/account/repository.py
@@ -87,12 +89,12 @@ def create_account_and_role(session, name: str, role_id: int):
     ...
 ```
 
-Repositoryを切り出す場合でも、それはModule内部の補助です。業務上の組み合わせを置くと、UsecaseとModuleの責務が崩れます。
+Even when Repository is extracted, it is an internal helper inside Module. Placing business combinations there breaks the responsibilities of Usecase and Module.
 
-## HUMQにおける整合性の割り切り
+## HUMQ's Tradeoff on Consistency
 
-HUMQは、すべての整合性を自動保証する設計ではありません。
+HUMQ is not a design that automatically guarantees all consistency.
 
-代わりに、整合性を見える場所に出します。Usecaseに書かれた処理を見ることで、どの秩序を結び、どの順序で実行し、どの範囲で失敗させるのかが分かります。
+Instead, it moves consistency to a visible place. By reading the Usecase, you can see which forms of order are connected, in what order they run, and which range is allowed to fail together.
 
-これは「整合性を犠牲にして秩序を得る」選択です。整合性を軽視するのではなく、設計者が責任を持って扱う場所を明確にするという意味です。
+This is a choice to trade implicit consistency for explicit order. It does not ignore consistency; it clarifies where designers must handle it responsibly.
