@@ -36,7 +36,7 @@ handlers/
 
 ## Usecase
 
-Usecase represents business intent. It combines multiple Modules and absorbs real-world exceptions, branches, consistency, and transaction boundaries.
+Usecase represents one explainable business intent. It combines multiple Modules and absorbs real-world exceptions, branches, consistency, and transaction boundaries.
 
 ### Belongs Here
 
@@ -44,6 +44,7 @@ Usecase represents business intent. It combines multiple Modules and absorbs rea
 - Conditional branches
 - Combining multiple Modules
 - Using Query
+- Calling mailers or external clients when a business flow needs them
 - Transaction boundaries
 - Exceptional business requirements
 
@@ -53,6 +54,7 @@ Usecase represents business intent. It combines multiple Modules and absorbs rea
 - Cross-cutting reads written as raw SQL
 - Direct dependency on ORM models
 - Designs that delegate `commit` / `rollback` to Module
+- Unrelated business operations bundled together only because they share some code
 
 ### Naming
 
@@ -74,26 +76,33 @@ usecases/
 
 ## Module
 
-Module owns internal order. As a rule, it provides operations closed around one table or one subject.
+A Module is closed around exactly one table.
+
+Module is not a Business Usecase, Aggregate, or broad domain subject. It is a small, stable unit of local table order. If a business operation spans three tables, HUMQ prefers three Modules coordinated by one Usecase over one large Module.
+
+This constraint keeps Modules stable and local. Modules do not call other Modules. Business flows that span multiple tables belong in Usecase.
 
 ### Belongs Here
 
-- Reads, creates, updates, and deletes closed around one subject
-- Subject-specific invariants
+- Reads, creates, updates, and deletes closed around one table
+- Simple single-table lookups used by Usecase
+- Table-specific invariants
 - Meaningful operations implemented with an ORM or similar tool
-- Thin operations that treat an external integration as one subject
 
 ### Does Not Belong Here
 
 - Business flows spanning multiple Modules
+- Operations spanning multiple tables
 - Temporary branches driven by a specific Usecase
+- Business logic extracted only to make Usecase look cleaner
 - Transaction management
 - Direct dependency on other Modules
 - Reads centered on joins or aggregations
+- External integrations that do not correspond to a table, such as mailers, payment gateways, or API clients
 
 ### Naming
 
-Module names should be singular nouns.
+Module names should be singular nouns corresponding to one table.
 
 ```text
 modules/
@@ -103,19 +112,26 @@ modules/
 ├── project/
 │   ├── model.py
 │   └── module.py
-└── mail/
+└── account_role/
+    ├── model.py
     └── module.py
 ```
 
+Tableless concerns should not be placed under `modules/`.
+
 ### About Repository
 
-Repository is not a required HUMQ layer. Module may use an ORM directly.
+Repository is not required by HUMQ. Module may use an ORM directly.
 
 Only extract `repository.py` as an internal helper inside Module when persistence code grows too large or when you need to hide storage other than an ORM. Even then, Repository is not a public layer and should not be called directly from Usecase.
 
 ## Query
 
-Query is a read-only observation layer. It handles joins, aggregations, reports, and list reads that span multiple tables.
+Query is a read-only observation rule for cross-table reads. It handles joins, aggregations, reports, and list reads that span multiple tables.
+
+Single-table reads belong in Module. Query exists for reads whose meaning comes from observing multiple tables or a reporting/search context.
+
+Query does not own transaction boundaries. It does not call `commit` or `rollback`; whether the underlying ORM or database connection uses a transaction internally is a separate implementation detail.
 
 ### Belongs Here
 

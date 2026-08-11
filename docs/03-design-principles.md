@@ -15,7 +15,7 @@ HUMQ distinguishes breaking from distorting.
 
 Business requirements may become complex inside Usecase. That means Usecase is absorbing real-world chaos.
 
-By contrast, Handler starting database operations, Module calling another Module, or Query starting writes are distortions. Once distortion enters the system, people begin placing code by personal preference, and order is lost.
+By contrast, Handler starting database operations, Module calling another Module, Module owning multiple tables, Query starting writes, or business flow leaking into Module are distortions. Once distortion enters the system, people begin placing code by personal preference, and order is lost.
 
 ## Principle 2: Design Freedom
 
@@ -29,19 +29,25 @@ Usecase absorbs:
 - Combinations of multiple Modules
 - Explicit control of consistency
 
-Because this freedom exists, Handler, Module, and Query can remain relatively pure.
+Chaos is allowed, but not everything goes. A Usecase may be complex, but its complexity must remain explainable as one business intent.
+
+Usecase freedom does not justify bundling unrelated business operations into one giant Usecase. When the same business procedure is duplicated across multiple Usecases, identify the responsibility and extract it appropriately. But do not push business logic into Module only to make Usecase look clean.
+
+Because this freedom exists, Handler, Module, and Query can remain relatively pure. This is how HUMQ connects freedom to "Break, but do not distort": Usecase may change and be repaired, while the structural boundaries stay stable.
 
 ## Principle 3: Treat Module as the Laws of the World
 
-Module is the stable order inside the application.
+Module is the stable local table order inside the application.
 
-Module is closed around one table or one subject. It does not know other Modules. It does not know business flows. It provides subject-specific operations as a part called from Usecase.
+A Module is closed around exactly one table. It does not represent an Aggregate or a broad business subject. It does not know other Modules. It does not know business flows. It provides table-specific operations as a part called from Usecase.
 
 If exceptional business concerns are placed in Module, Module becomes harder to reuse. It also starts behaving unnaturally from the perspective of Usecases that do not need that exception.
 
+If a business operation spans three tables, HUMQ prefers three Modules coordinated by one Usecase over one large Module.
+
 ## Principle 4: Keep Query as Observation
 
-Reads that span multiple tables should not be forced into Module. Module order is subject-based, while cross-subject reads have a different nature.
+Single-table reads belong in Module. Reads that span multiple tables should not be forced into Module. Module order is table-based, while cross-table reads have a different nature.
 
 Query is the layer that accepts this cross-cutting nature. But it does not write. It only observes.
 
@@ -65,8 +71,8 @@ When unsure, decide by asking these questions:
 | --- | --- |
 | Is it about input/output from the outside world? | Handler |
 | Is it about business flow or consistency? | Usecase |
-| Is it an operation closed around one subject? | Module |
-| Is it a read that spans multiple subjects? | Query |
+| Is it an operation closed around exactly one table? | Module |
+| Is it a read that spans multiple tables? | Query |
 
 ---
 

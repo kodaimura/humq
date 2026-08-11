@@ -8,13 +8,13 @@ In HUMQ, consistency and transactions are Usecase responsibilities.
 - Module does not call `commit` or `rollback`.
 - Even if Repository is extracted, it does not call `commit` or `rollback`.
 - Make consistency across multiple Modules explicit in Usecase.
-- Query is read-only and has no transaction boundary.
+- Query is read-only and does not own transaction boundaries.
 
 ## Why Transactions Belong in Usecase
 
 A transaction is an operation that temporarily binds multiple forms of order.
 
-Module is an order closed around one subject. If Module manages transactions, it becomes difficult for the surrounding Usecase to control consistency across the whole operation.
+Module is an order closed around exactly one table. If Module manages transactions, it becomes difficult for the surrounding Usecase to control consistency across the whole operation.
 
 When Usecase owns transactions, the following become explicit:
 
@@ -31,7 +31,7 @@ In DDD, the Aggregate Root protects consistency. In HUMQ, Usecase makes consiste
 | --- | --- | --- |
 | Consistency responsibility | Aggregate | Usecase |
 | Transaction boundary | Aggregate unit | Usecase unit |
-| Flexibility | Strongly depends on boundaries | Easy to combine Modules |
+| Flexibility | Strongly depends on boundaries | Easy to coordinate table-sized Modules |
 | Visibility | Hidden inside | Visible in code |
 | Reusability | Tends to stay inside Aggregate | Easier at Module level |
 
@@ -61,6 +61,22 @@ def assign_role(session, account_id: int, role_id: int) -> None:
 ```
 
 This Usecase binds the order of Account, Role, AccountRole, and AuditLog into one business intent.
+
+## External Side Effects
+
+Do not perform external side effects, such as sending email or calling a payment API, in the middle of a database transaction.
+
+```text
+database transaction
+↓
+commit
+↓
+external side effect
+```
+
+This avoids a simple inconsistency where the email succeeds but the database commit fails and rolls back. If stronger consistency is required, use a pattern such as Outbox. HUMQ itself does not require Outbox; it only requires that transaction boundaries and side effects are visible in Usecase.
+
+Mailers, payment gateways, and external API clients are not Modules, because they do not correspond to one table.
 
 ## Examples to Avoid
 
@@ -96,6 +112,12 @@ HUMQ is not a design that automatically guarantees all consistency.
 Instead, it moves consistency to a visible place. By reading the Usecase, you can see which forms of order are connected, in what order they run, and which range is allowed to fail together.
 
 This is a choice to trade implicit consistency for explicit order. It does not ignore consistency; it clarifies where designers must handle it responsibly.
+
+## Query and Transactions
+
+Query is read-only. Query does not decide transaction boundaries and does not call `commit` or `rollback`.
+
+This does not mean the underlying ORM or database connection never uses a transaction internally. It only means Query does not own that boundary as a HUMQ responsibility.
 
 ---
 

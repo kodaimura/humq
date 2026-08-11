@@ -1,6 +1,6 @@
 # FastAPI構成例
 
-このドキュメントでは、FastAPIでHUMQを適用する場合の構成例を示します。
+このドキュメントでは、FastAPIでHUMQを適用する場合の小さな構成例を示します。
 
 ## ディレクトリ構成
 
@@ -9,46 +9,41 @@ app/
 ├── main.py
 ├── core/
 │   ├── config.py
-│   ├── db.py
-│   ├── exceptions.py
-│   ├── jwt.py
-│   ├── logger.py
-│   └── mail.py
+│   └── db.py
 ├── handlers/
-│   ├── accounts.py
-│   ├── projects.py
-│   ├── users.py
-│   └── health.py
+│   └── accounts.py
 ├── usecases/
-│   ├── accounts/
-│   │   ├── signup.py
-│   │   ├── login.py
-│   │   ├── update_profile.py
-│   │   └── delete.py
-│   ├── projects/
-│   │   ├── create.py
-│   │   ├── update.py
-│   │   └── archive.py
-│   └── users/
-│       └── deactivate.py
+│   └── accounts/
+│       └── signup.py
 ├── modules/
 │   ├── account/
 │   │   ├── model.py
 │   │   └── module.py
-│   ├── project/
-│   │   ├── model.py
-│   │   └── module.py
-│   └── mail/
+│   └── account_role/
+│       ├── model.py
 │       └── module.py
 ├── queries/
-│   ├── account_orders.py
-│   ├── project_progress.py
-│   ├── sales_report.py
-│   └── activity_overview.py
-└── schemas/
-    ├── account_dto.py
-    ├── project_dto.py
-    └── __init__.py
+│   └── account_overview.py
+├── schemas/
+│   └── account_dto.py
+└── infrastructure/
+    └── mailer.py
+```
+
+重要なアプリケーションの流れは次の通りです。
+
+```text
+Handler
+  ↓
+Usecase
+  ├── AccountModule
+  └── AccountRoleModule
+
+Handler
+  ↓
+Usecase
+  ↓
+Query
 ```
 
 ## Handler例
@@ -59,7 +54,9 @@ app/
 from fastapi import APIRouter, Depends
 
 from app.core.db import get_session
-from app.schemas.account_dto import SignupRequest, AccountResponse
+from app.infrastructure.mailer import Mailer, get_mailer
+from app.schemas.account_dto import AccountResponse, SignupRequest
+from app.usecases.accounts.list_accounts import list_accounts
 from app.usecases.accounts.signup import signup
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
@@ -69,12 +66,24 @@ router = APIRouter(prefix="/accounts", tags=["accounts"])
 def signup_account(
     request: SignupRequest,
     session = Depends(get_session),
+    mailer: Mailer = Depends(get_mailer),
 ):
-    account = signup(session=session, request=request)
+    account = signup(
+        session=session,
+        email=request.email,
+        name=request.name,
+        default_role="member",
+        mailer=mailer,
+    )
     return AccountResponse.model_validate(account)
+
+
+@router.get("", response_model=list[AccountResponse])
+def list_account_list(session = Depends(get_session)):
+    return list_accounts(session=session)
 ```
 
-Handlerはリクエストを受け、Usecaseを呼び、レスポンスへ変換するだけです。
+HandlerはFramework固有のRequest DTOを受け取り、Usecaseには通常の引数として渡します。UsecaseはFastAPIやPydanticのRequest objectに依存しません。
 
 ## Usecase例
 
@@ -82,26 +91,42 @@ Handlerはリクエストを受け、Usecaseを呼び、レスポンスへ変換
 # usecases/accounts/signup.py
 
 from app.modules.account import module as account_module
-from app.modules.mail import module as mail_module
+from app.modules.account_role import module as account_role_module
 
 
-def signup(session, request):
+def signup(session, email: str, name: str, default_role: str, mailer):
     with session.begin():
         account = account_module.create(
             session=session,
-            email=request.email,
-            name=request.name,
+            email=email,
+            name=name,
         )
 
-        mail_module.send_welcome(
-            email=account.email,
-            name=account.name,
+        account_role_module.create(
+            session=session,
+            account_id=account.id,
+            role=default_role,
         )
 
-        return account
+    mailer.send_welcome(email=account.email, name=account.name)
+    return account
 ```
 
-Usecaseは業務フローとトランザクション境界を持ちます。複数Moduleを組み合わせる責務もUsecaseにあります。
+Usecaseは業務フローとトランザクション境界を持ちます。テーブル単位のModuleを組み合わせる責務もUsecaseにあります。
+
+外部Side EffectはDBトランザクションのcommit後に実行します。より強い整合性が必要な場合はOutbox Patternなどを使えますが、HUMQ自体はOutboxを前提にしません。
+
+```python
+# usecases/accounts/list_accounts.py
+
+from app.queries.account_overview import list_account_overview
+
+
+def list_accounts(session):
+    return list_account_overview(session)
+```
+
+読み取りUsecaseは薄くて構いません。重要なのは、HandlerはUsecaseを呼び、どのQueryで読み取り意図を表現するかはUsecaseが決めることです。
 
 ## Module例
 
@@ -122,26 +147,42 @@ def create(session, email: str, name: str):
     return account
 ```
 
-ModuleはAccountという対象に閉じた操作を提供します。他のModuleは呼びません。トランザクションも管理しません。
+```python
+# modules/account_role/module.py
+
+from app.modules.account_role.model import AccountRole
+
+
+def create(session, account_id: int, role: str):
+    account_role = AccountRole(account_id=account_id, role=role)
+    session.add(account_role)
+    session.flush()
+    return account_role
+```
+
+各Moduleは正確に1テーブルに閉じます。`AccountModule` は `AccountRoleModule` を呼びません。`AccountRoleModule` も `AccountModule` を呼びません。
 
 Repositoryは必須ではありません。ORM操作がModule内で十分に読めるなら、そのままModuleに書きます。永続化処理が大きくなった場合だけ、Module内部の補助として切り出します。
 
 ## Query例
 
 ```python
-# queries/account_orders.py
+# queries/account_overview.py
 
-def list_account_orders(session, account_id: int):
+from app.modules.account.model import Account
+from app.modules.account_role.model import AccountRole
+
+
+def list_account_overview(session):
     return (
-        session.query(...)
-        .join(...)
-        .filter(...)
-        .order_by(...)
+        session.query(Account)
+        .join(AccountRole, AccountRole.account_id == Account.id)
+        .order_by(Account.id)
         .all()
     )
 ```
 
-Queryは読み取り専用です。JOINや集計のような横断的な観測を担当します。
+Queryは読み取り専用です。複数テーブルを横断して読んで構いませんが、書き込みはせず、トランザクション境界も所有しません。
 
 ## 判断基準
 
@@ -152,9 +193,9 @@ Queryは読み取り専用です。JOINや集計のような横断的な観測�
 | APIの入力と出力 | Handler |
 | 業務手続き | Usecase |
 | トランザクション境界 | Usecase |
-| 1テーブルに閉じた操作 | Module |
-| DBへの単純アクセス | Module |
-| 複数テーブルをまたぐ読み取り | Query |
+| 1テーブルに閉じた読み書き | Module |
+| 読み取り意図 | Usecase |
+| 複数テーブルをまたぐ読み取り | Usecaseから呼ばれるQuery |
 
 ---
 

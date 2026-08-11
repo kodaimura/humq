@@ -4,21 +4,23 @@
 
 > 日本語版はこちら: [README.ja.md](README.ja.md)
 
-HUMQ is a software architecture principle for organizing application code into four layers:<br>
+HUMQ is a software architecture principle that redefines responsibilities often blurred in existing architectures into four practical rules:<br>
 Handler, Usecase, Module, and Query.<br>
-It does not try to eliminate the exceptions and changes that inevitably exist in real business systems.<br>
-Instead, it defines where that complexity should live.
+It does not try to make every part of a business system clean.<br>
+Instead, it designs constraints for where real-world complexity is allowed to live.
 
 Handler owns the boundary with the outside world.<br>
-Usecase carries business intent, orchestration, consistency, and transaction boundaries.<br>
-Module protects local internal order around a single subject.<br>
-Query observes the system through joins, aggregations, and cross-subject reads.
+Usecase carries one explainable business intent, including orchestration, branching, consistency, and transaction boundaries.<br>
+Module protects local internal order around exactly one table, including single-table reads and writes.<br>
+Query observes the system through read-only, cross-table views.
 
 HUMQ is not about making systems impossible to break.<br>
 It is about knowing where to clean up when they do break,<br>
-while keeping responsibility boundaries from distorting.
+without letting responsibility boundaries distort.
 
 > Do not force everything into order. Allow the necessary chaos inside the order.
+>
+> Break, but do not distort.
 
 ## Documentation
 
@@ -31,22 +33,26 @@ while keeping responsibility boundaries from distorting.
 
 ## One-Sentence Definition
 
-HUMQ separates the layers that protect order from the layers that absorb chaos, creating a structure that is easy to clean up and hard to distort.
+HUMQ redefines ambiguous application responsibilities into four practical rules that separate where order is protected from where business chaos is absorbed.
 
-## Four Layers
+## Four Responsibility Rules
 
 | Layer | Role | Main responsibility |
 | --- | --- | --- |
 | Handler | Boundary | Receives HTTP requests or events and transforms input/output |
 | Usecase | Intent and reality | Handles business flows, consistency, and transactions |
-| Module | Internal order | Provides operations closed around one table or one subject |
-| Query | Observation | Handles joins, aggregations, and cross-subject reads |
+| Module | Local order | Provides reads and writes closed around exactly one table |
+| Query | Observation | Handles read-only joins, aggregations, and cross-table reads |
 
 ## Basic Principles
 
 - Keep Handler thin.
-- Let Usecase absorb real-world complexity.
-- Keep Module closed around one subject, unaware of other Modules.
-- Keep Query read-only, with no writes or transactions.
+- Let Usecase absorb real-world complexity, but keep each Usecase tied to one explainable business intent.
+- Keep Module closed around exactly one table, unaware of other Modules.
+- Keep Query read-only. Query does not own transaction boundaries.
 - Put transaction boundaries in Usecase.
 - Allow breakage, but do not allow responsibility boundaries to distort.
+
+## License
+
+[MIT](LICENSE)

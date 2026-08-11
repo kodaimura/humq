@@ -24,7 +24,7 @@ In DDD, Domain and Aggregate hold strong order. But real business systems includ
 
 If those are placed in Domain, it becomes difficult to preserve purity over time.
 
-In HUMQ, real-world exceptions are absorbed by Usecase, while Module's order is protected.
+In HUMQ, real-world exceptions are absorbed by Usecase, while Module's table-sized order is protected.
 
 ## HUMQ Mapping
 
@@ -32,7 +32,7 @@ In HUMQ, real-world exceptions are absorbed by Usecase, while Module's order is 
 | --- | --- |
 | Controller | Handler, limited to input/output |
 | Service | Split into Usecase and Module |
-| Domain | Treated as subject-specific order inside Module |
+| Domain | Not mapped directly. Stable table operations belong in Module; business flow belongs in Usecase |
 | Repository | Not required; used only as an internal helper inside Module when needed |
 | Read Model / Report | Separated as read-only Query |
 
@@ -53,6 +53,7 @@ HUMQ gives freedom to Usecase. Therefore, the person writing Usecase must take r
 
 - Make consistency explicit in Usecase.
 - Do not pollute Module for convenience.
+- Do not merge multiple tables into one Module to model a large business concept.
 - Keep Query read-only.
 - Keep Handler thin.
 - Prioritize responsibility boundaries over convenience.
@@ -63,11 +64,11 @@ HUMQ's weakness is that consistency is not automatically protected. But that wea
 
 | Viewpoint | Common layered structure | DDD | HUMQ |
 | --- | --- | --- | --- |
-| Responsibility boundaries | Service often becomes ambiguous | Depends on Aggregate design | Fixed by four layers |
+| Responsibility boundaries | Service often becomes ambiguous | Depends on Aggregate design | Redefined as four practical rules |
 | Business exceptions | Easily scattered across Service or Domain | Can pollute Domain | Absorbed by Usecase |
 | Cross-cutting reads | Easily mixed into Repository or Service | Requires separate Read Model design | Separated into Query |
 | Transactions | Often placed in Service | Aggregate unit | Usecase unit |
-| Reusability | Depends on Service granularity | Depends on Aggregate boundaries | Easier to preserve at Module level |
+| Reusability | Depends on Service granularity | Depends on Aggregate boundaries | Easier to preserve with small table-sized Modules |
 | Long-term operation | Often drifts by developer | Design difficulty is high | Reduces ambiguity about where code belongs |
 
 ---

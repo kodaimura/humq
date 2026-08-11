@@ -24,7 +24,7 @@ DDDではDomainやAggregateが強い秩序を持ちます。しかし現実の�
 
 それらをDomainへ入れると、長期的に純度を保ちにくくなります。
 
-HUMQでは、現実の例外はUsecaseで受け止め、Moduleの秩序を守ります。
+HUMQでは、現実の例外はUsecaseで受け止め、Moduleのテーブル単位の秩序を守ります。
 
 ## HUMQの整理
 
@@ -32,7 +32,7 @@ HUMQでは、現実の例外はUsecaseで受け止め、Moduleの秩序を守り
 | --- | --- |
 | Controller | Handler。入出力に限定する |
 | Service | UsecaseとModuleに分ける |
-| Domain | Moduleの対象固有の秩序として扱う |
+| Domain | 直接対応させない。安定したテーブル操作はModule、業務フローはUsecaseに置く |
 | Repository | 必須層ではない。必要ならModule内部の補助として扱う |
 | Read Model / Report | Queryとして読み取り専用に分離する |
 
@@ -53,6 +53,7 @@ HUMQは、Usecaseに自由を与えます。そのため、Usecaseを書く人�
 
 - 整合性をUsecaseで明示する。
 - Moduleを都合よく汚さない。
+- 大きな業務概念を表現するために複数テーブルを1つのModuleへまとめない。
 - Queryを読み取り専用に保つ。
 - Handlerを薄く保つ。
 - 便利さより責務境界を優先する。
@@ -63,11 +64,11 @@ HUMQの弱点は、整合性が自動的に守られるわけではないこと�
 
 | 観点 | 一般的なレイヤード構造 | DDD | HUMQ |
 | --- | --- | --- | --- |
-| 責務境界 | Serviceが曖昧になりやすい | Aggregate設計に依存する | 4層で固定する |
+| 責務境界 | Serviceが曖昧になりやすい | Aggregate設計に依存する | 4つの実務ルールへ再定義する |
 | 業務例外 | ServiceやDomainに散らばりやすい | Domainを汚しやすい | Usecaseが引き受ける |
 | 読み取り横断 | RepositoryやServiceに混ざりやすい | Read Model設計が別途必要 | Queryに分離する |
 | トランザクション | Serviceに置かれがち | Aggregate単位 | Usecase単位 |
-| 再利用性 | Service粒度に依存する | Aggregate境界に依存する | Module単位で保ちやすい |
+| 再利用性 | Service粒度に依存する | Aggregate境界に依存する | 小さなテーブル単位のModuleで保ちやすい |
 | 長期運用 | 人によって崩れやすい | 設計難度が高い | 置き場所の迷いを減らす |
 
 ---
