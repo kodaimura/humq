@@ -1,4 +1,4 @@
-# HUMQ
+<h1>HUMQ <img src="assets/logo.png" alt="HUMQ logo" width="42"></h1>
 
 HUMQは、Handler / Usecase / Module / Query の4層でアプリケーションを整理するアーキテクチャ思想です。
 
