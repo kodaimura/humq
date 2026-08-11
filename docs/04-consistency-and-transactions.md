@@ -1,7 +1,5 @@
 # Consistency and Transactions
 
-> Japanese: [04-consistency-and-transactions.ja.md](04-consistency-and-transactions.ja.md)
-
 In HUMQ, consistency and transactions are Usecase responsibilities.
 
 ## Basic Rules
@@ -98,3 +96,7 @@ HUMQ is not a design that automatically guarantees all consistency.
 Instead, it moves consistency to a visible place. By reading the Usecase, you can see which forms of order are connected, in what order they run, and which range is allowed to fail together.
 
 This is a choice to trade implicit consistency for explicit order. It does not ignore consistency; it clarifies where designers must handle it responsibly.
+
+---
+
+Previous: [Design Principles](03-design-principles.md) | Next: [Comparison with Existing Architectures](05-comparison.md)

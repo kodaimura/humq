@@ -1,7 +1,5 @@
 # FastAPI Example
 
-> Japanese: [06-fastapi-example.ja.md](06-fastapi-example.ja.md)
-
 This document shows an example structure for applying HUMQ with FastAPI.
 
 ## Directory Structure
@@ -157,3 +155,7 @@ When unsure during implementation, use these criteria:
 | Operation closed around one table | Module |
 | Simple database access | Module |
 | Read spanning multiple tables | Query |
+
+---
+
+Previous: [Comparison with Existing Architectures](05-comparison.md) | Next: [README](../README.md)

@@ -1,7 +1,5 @@
 # Layer Rules
 
-> Japanese: [02-layer-rules.ja.md](02-layer-rules.ja.md)
-
 This document defines what belongs in each HUMQ layer, what does not, and how files should be named.
 
 ## Handler
@@ -146,3 +144,7 @@ Query should be named by what it observes or by business context, not by entity 
 | Overall user activity | `activity_overview.py` |
 
 Query describes what it observes, not which table it comes from.
+
+---
+
+Previous: [Overview](01-overview.md) | Next: [Design Principles](03-design-principles.md)

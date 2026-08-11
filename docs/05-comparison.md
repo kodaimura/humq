@@ -1,7 +1,5 @@
 # Comparison with Existing Architectures
 
-> Japanese: [05-comparison.ja.md](05-comparison.ja.md)
-
 HUMQ does not reject MVC, layered architecture, clean architecture, or DDD. It is a design that treats responsibility boundaries more explicitly where those architectures often become ambiguous in practice.
 
 ## Common Problems in Existing Designs
@@ -71,3 +69,7 @@ HUMQ's weakness is that consistency is not automatically protected. But that wea
 | Transactions | Often placed in Service | Aggregate unit | Usecase unit |
 | Reusability | Depends on Service granularity | Depends on Aggregate boundaries | Easier to preserve at Module level |
 | Long-term operation | Often drifts by developer | Design difficulty is high | Reduces ambiguity about where code belongs |
+
+---
+
+Previous: [Consistency and Transactions](04-consistency-and-transactions.md) | Next: [FastAPI Example](06-fastapi-example.md)

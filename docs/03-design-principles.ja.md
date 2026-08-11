@@ -1,7 +1,5 @@
 # 設計原則
 
-> English: [03-design-principles.md](03-design-principles.md)
-
 HUMQは、すべてを綺麗に保つための設計ではありません。汚れてよい場所を明確にし、歪んではいけない場所を守るための設計です。
 
 ## 原則1: 壊れてもよい、歪むな
@@ -69,3 +67,7 @@ HUMQで最も重要なのは、各層の責務が揺れないことです。
 | 業務フローや整合性の話か | Usecase |
 | 1対象に閉じた操作か | Module |
 | 複数対象を横断する読み取りか | Query |
+
+---
+
+前へ: [層と責務のルール](02-layer-rules.ja.md) | 次へ: [整合性とトランザクション](04-consistency-and-transactions.ja.md)

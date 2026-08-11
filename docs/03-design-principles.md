@@ -1,7 +1,5 @@
 # Design Principles
 
-> Japanese: [03-design-principles.ja.md](03-design-principles.ja.md)
-
 HUMQ is not a design for keeping everything clean. It is a design for deciding where mess is allowed and protecting the places that must not distort.
 
 ## Principle 1: Break, but Do Not Distort
@@ -69,3 +67,7 @@ When unsure, decide by asking these questions:
 | Is it about business flow or consistency? | Usecase |
 | Is it an operation closed around one subject? | Module |
 | Is it a read that spans multiple subjects? | Query |
+
+---
+
+Previous: [Layer Rules](02-layer-rules.md) | Next: [Consistency and Transactions](04-consistency-and-transactions.md)

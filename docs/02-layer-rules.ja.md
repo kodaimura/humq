@@ -1,7 +1,5 @@
 # 層と責務のルール
 
-> English: [02-layer-rules.md](02-layer-rules.md)
-
 このドキュメントでは、HUMQの各層に置くもの、置かないもの、命名規則を定義します。
 
 ## Handler
@@ -146,3 +144,7 @@ Queryはエンティティ名ではなく、観測対象や業務文脈で命名
 | ユーザー行動全体 | `activity_overview.py` |
 
 Queryは「どのテーブルか」ではなく「何を観測しているか」を語る層です。
+
+---
+
+前へ: [HUMQの概要](01-overview.ja.md) | 次へ: [設計原則](03-design-principles.ja.md)

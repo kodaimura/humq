@@ -1,7 +1,5 @@
 # FastAPI構成例
 
-> English: [06-fastapi-example.md](06-fastapi-example.md)
-
 このドキュメントでは、FastAPIでHUMQを適用する場合の構成例を示します。
 
 ## ディレクトリ構成
@@ -157,3 +155,7 @@ Queryは読み取り専用です。JOINや集計のような横断的な観測�
 | 1テーブルに閉じた操作 | Module |
 | DBへの単純アクセス | Module |
 | 複数テーブルをまたぐ読み取り | Query |
+
+---
+
+前へ: [既存アーキテクチャとの比較](05-comparison.ja.md) | 次へ: [README](../README.ja.md)

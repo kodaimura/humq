@@ -1,7 +1,5 @@
 # 既存アーキテクチャとの比較
 
-> English: [05-comparison.md](05-comparison.md)
-
 HUMQは、MVC、レイヤードアーキテクチャ、クリーンアーキテクチャ、DDDを否定するものではありません。それらが実務で曖昧になりやすい責務境界を、より固定的に扱う設計です。
 
 ## 既存設計で起きやすい問題
@@ -71,3 +69,7 @@ HUMQの弱点は、整合性が自動的に守られるわけではないこと�
 | トランザクション | Serviceに置かれがち | Aggregate単位 | Usecase単位 |
 | 再利用性 | Service粒度に依存する | Aggregate境界に依存する | Module単位で保ちやすい |
 | 長期運用 | 人によって崩れやすい | 設計難度が高い | 置き場所の迷いを減らす |
+
+---
+
+前へ: [整合性とトランザクション](04-consistency-and-transactions.ja.md) | 次へ: [FastAPI構成例](06-fastapi-example.ja.md)
