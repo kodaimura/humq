@@ -1,12 +1,18 @@
-<p align="right">
-  <img src="assets/logo.png" alt="HUMQ logo" width="180">
-</p>
+# HUMQ - カオスを設計するアーキテクチャ
 
-# HUMQ
+<img align="right" src="assets/logo.png" alt="HUMQ logo" width="190">
 
-HUMQは、Handler / Usecase / Module / Query の4層でアプリケーションを整理するアーキテクチャ思想です。
+HUMQは、Handler / Usecase / Module / Query の4層で、アプリケーションを整理する<br>
+ソフトウェアアーキテクチャの設計原則です。<br>
+現実の業務に必ず存在する例外や変更を排除するのではなく、どこに置くべきかを明確にします。<br>
 
-目的は、現実の業務に必ず存在する例外や変更を排除することではなく、どこに置くべきかを明確にし、秩序を長く保つことです。
+Handlerは外界との接点を受け持ち、<br>
+Usecaseは業務上の意志と複雑さを引き受けます。<br>
+Moduleは1つの対象に閉じた内部秩序を守り、<br>
+Queryは複数の対象を横断する読み取りを観測として扱います。
+
+HUMQが重視するのは、完全に壊れないことではありません。<br>
+壊れたときにどこを片付ければよいかが分かり、責務境界が歪まないことです。<br>
 
 > すべてを秩序化するのではなく、秩序の中に必要なカオスを許す。
 
