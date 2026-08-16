@@ -1,141 +1,90 @@
-# Consistency and Transactions
+# Handling Consistency
 
-In HUMQ, consistency and transaction boundaries are Usecase responsibilities. The important question is not only where `commit` occurs, but what succeeds atomically and what is handled as a separate failure. That answer must remain visible from Usecase.
+HUMQ does not automatically protect consistency across multiple tables through its structure.<br>
+If a required Module call or validation is omitted from Usecase, data inconsistency becomes more likely.<br>
+This is a major tradeoff that HUMQ accepts.
 
-## Basic Rules
+That makes it essential to define where consistency is protected.<br>
+In HUMQ, business consistency across multiple tables<br>
+and database transaction boundaries are Usecase responsibilities.
 
-- Only Usecase may own application transaction boundaries.
-- By default, group database writes that must be atomic into one transaction.
-- Module does not call `commit` or `rollback`.
-- Even if Repository is extracted, it does not call `commit` or `rollback`.
-- Make consistency across multiple Modules explicit in Usecase.
-- Query is read-only and does not own transaction boundaries.
-- Do not perform external side effects in the middle of a database transaction.
+## Responsibilities
 
-## Why Transactions Belong in Usecase
+- **Usecase**: Owns cross-table consistency, operation order, failure conditions, and transaction boundaries.
+- **Module**: Provides operations on one table and does not call `commit` or `rollback`.
+- **Query**: Is read-only and does not own transaction boundaries.
+- **Database**: Enforces database-expressible constraints and provides concurrency-control mechanisms.
+- **Test**: Verifies business branches, failures, and `rollback` behavior.
 
-A transaction is an operation that temporarily binds multiple forms of order.
+## Transaction Boundaries
 
-Module is an order closed around exactly one table. If Module manages transactions, it becomes difficult for the surrounding Usecase to control consistency across the whole operation.
+A transaction boundary is determined by which state changes must be established together as a business operation,<br>
+not by the convenience of a table or Module.
 
-When Usecase owns transactions, the following become explicit:
-
-- Which operations form one business unit.
-- Which Modules are combined.
-- Which range succeeds or fails as one unit.
-- Which consistency rules are intentionally protected.
-
-HUMQ does not force a one-to-one mapping of `Usecase = Transaction`. A read-only Usecase may not need an explicit transaction. A long-running business operation involving external systems may require several database transactions and compensating actions.
-
-Even then, each boundary, side effect, and post-failure policy remains traceable from Usecase. When using a transaction decorator, its declaration must make clear which Usecase and which scope it wraps.
-
-## Difference from Aggregate-Centered Designs
-
-DDD Aggregates are a strong way to protect invariants within an Aggregate boundary. An Application Service may also coordinate multiple Aggregates, so DDD does not inherently hide business flows.
-
-The difference is the default boundary.
-
-| Viewpoint | Aggregate-centered design | HUMQ |
-| --- | --- | --- |
-| Local consistency | Expressed inside Aggregate | Expressed in a one-table Module |
-| Cross-boundary consistency | Coordinated in an application layer or similar place | Made explicit in Usecase |
-| Lower-level boundary | Chosen through Domain Model design | Mechanically fixed at one table |
-| Main tradeoff | Strong invariants, harder boundary design | High traceability, less automatic protection |
-
-HUMQ prioritizes traceable operation targets and consistency over automatic protection.
-
-## Implementation Sketch
+For example, if confirming an order, reserving inventory, and registering a delivery request<br>
+would leave invalid state when any one is missing, they belong in the same transaction.
 
 ```python
-# usecases/accounts/assign_role.py
+# usecases/orders/confirm_order.py
 
-def assign_role(session, account_id: int, role_id: int) -> None:
+def confirm_order(session, order_id: int) -> None:
     with session.begin():
-        account = account_module.get(session, account_id)
-        role = role_module.get(session, role_id)
+        order = order_module.get_for_update(session, order_id)
+        items = order_item_module.list_by_order(session, order_id)
 
-        account_role_module.register(
-            session=session,
-            account_id=account.id,
-            role_id=role.id,
-        )
+        for item in items:
+            updated = inventory_module.decrease_if_available(
+                session,
+                product_id=item.product_id,
+                quantity=item.quantity,
+            )
+            if not updated:
+                raise InsufficientInventory(item.product_id)
 
-        audit_log_module.record(
-            session=session,
-            action="assign_role",
-            actor_id=account.id,
-        )
+        order_module.mark_confirmed(session, order.id)
+        outbox_module.enqueue_order_confirmed(session, order.id)
 ```
 
-This Usecase makes the operations on Account, Role, AccountRole, and AuditLog—and their atomic scope—visible in one place.
+When inventory is insufficient, an exception causes all preceding inventory updates,<br>
+the order confirmation, and the delivery request to `rollback` together.<br>
+Usecase shows which Modules are combined and which writes fail together.
 
-## External Side Effects
+HUMQ does not require `1 Usecase = 1 Transaction`.<br>
+A read-only Usecase may not need an explicit transaction.<br>
+A business flow spanning multiple requests or external systems may use multiple transactions.<br>
+Even then, Usecase keeps each confirmed state and post-failure policy traceable.
 
-Do not perform external side effects, such as sending email or calling a payment API, in the middle of a database transaction.
+## Consistency Enforced by the Database
 
-```text
-database transaction
-↓
-commit
-↓
-external side effect
-```
+Placing an operation in Usecase does not prevent omissions or inconsistencies caused by concurrent updates.
 
-This avoids an inconsistency where the email succeeds but the database commit fails and rolls back. However, the email can still fail after the commit. Reordering the operations cannot make a database and an external system atomic.
+Rules expressible with `UNIQUE`, `NOT NULL`, `CHECK`, or foreign keys are enforced as database constraints.<br>
+Operations such as decrementing inventory, where multiple requests can update the same data,<br>
+use conditional updates, row locks, optimistic locking, or other required concurrency control inside Module operations.
 
-Usecase selects a failure policy according to the required guarantee.
+Usecase makes explicit the business condition under which each operation is called and how its failure is handled.
 
-| Situation | Policy |
-| --- | --- |
-| Notification failure is acceptable | Send after commit and record failures |
-| Delivery must be retried | Design idempotent delivery and retries |
-| A committed delivery request must not be lost | Use the Outbox Pattern |
-| External state changes, as with payments | Design idempotency, a Saga, or compensation |
+## Consistency with External Systems
 
-With Outbox, Usecase writes to an outbox table through a normal Module in the same transaction, and a separate worker delivers it. HUMQ does not require Outbox. It requires the transaction boundary, side effect, and failure guarantee to remain traceable from Usecase.
+Sending email or calling a payment API cannot be handled in the same transaction as the database.<br>
+The database may `rollback` after the external operation succeeds,<br>
+or the external operation may fail after the database `commit` succeeds.
 
-Mailers, payment gateways, and external API clients are not Modules, because they do not correspond to one table.
+- Run notifications whose failure is acceptable after the database `commit`.
+- When a delivery request must not be lost, record it in an outbox table in the same transaction.
+- When external state changes, as with payments, design idempotency, retries, and compensation.
 
-## Examples to Avoid
+With Outbox, Usecase does not guarantee completion of the external operation.<br>
+It guarantees that the database state change and the delivery request are recorded together.
 
-### Module Commits
+## HUMQ's Tradeoff
 
-```python
-# modules/account/module.py
+HUMQ does not automatically prevent a missing Module call or consistency rule.<br>
+An omission in Usecase can still produce inconsistent state.
 
-def create(session, name: str):
-    account = Account(name=name)
-    session.add(account)
-    session.commit()
-    return account
-```
-
-With this design, Usecase cannot combine multiple Modules into one transaction because Module closes the boundary on its own.
-
-### Persistence Helper Owns Business Consistency
-
-```python
-# modules/account/repository.py
-
-def create_account_and_role(session, name: str, role_id: int):
-    ...
-```
-
-Even when Repository is extracted, it is an internal helper inside Module. Placing business combinations there breaks the responsibilities of Usecase and Module.
-
-## HUMQ's Tradeoff on Consistency
-
-HUMQ is not a design that automatically guarantees all consistency.
-
-Instead, it moves consistency to a visible place. By reading the Usecase, you can see which forms of order are connected, in what order they run, and which range is allowed to fail together.
-
-This trades automatic, implicit protection for explicit consistency and traceability. It does not ignore consistency; it clarifies where designers must handle it responsibly.
-
-## Query and Transactions
-
-Query is read-only. Query does not decide transaction boundaries and does not call `commit` or `rollback`.
-
-This does not mean the underlying ORM or database connection never uses a transaction internally. It only means Query does not own that boundary as a HUMQ responsibility.
+Database constraints and Usecase tests are therefore used together.<br>
+HUMQ provides no automatic guarantee of consistency.<br>
+It provides a structure in which responsibility for consistency and the scope to inspect during change do not spread.
 
 ---
 

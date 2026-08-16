@@ -169,4 +169,4 @@ HUMQは業務を単純にするものではありません。<br>
 
 ---
 
-前へ: [整合性とトランザクション](04-consistency-and-transactions.ja.md) | 次へ: [FastAPI構成例](06-fastapi-example.ja.md)
+前へ: [整合性の扱い](04-consistency-and-transactions.ja.md) | 次へ: [FastAPI構成例](06-fastapi-example.ja.md)

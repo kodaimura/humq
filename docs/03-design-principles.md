@@ -95,4 +95,4 @@ When unsure, decide by asking these questions:
 
 ---
 
-Previous: [Layer Rules](02-layer-rules.md) | Next: [Consistency and Transactions](04-consistency-and-transactions.md)
+Previous: [Layer Rules](02-layer-rules.md) | Next: [Handling Consistency](04-consistency-and-transactions.md)

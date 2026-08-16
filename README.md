@@ -91,7 +91,7 @@ where it fits, and when another design may be more appropriate.
 - [Overview](docs/01-overview.md)
 - [Layer rules](docs/02-layer-rules.md)
 - [Design principles](docs/03-design-principles.md)
-- [Consistency and transactions](docs/04-consistency-and-transactions.md)
+- [Handling consistency](docs/04-consistency-and-transactions.md)
 - [Architecture and design pattern comparison](docs/05-comparison.md)
 - [Adoption and tradeoffs](docs/05-comparison.md#adoption-and-tradeoffs)
 - [FastAPI example](docs/06-fastapi-example.md)

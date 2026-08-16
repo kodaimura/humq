@@ -95,4 +95,4 @@ HandlerがDB操作を始める、Moduleが別Moduleを呼ぶ、Moduleが複数�
 
 ---
 
-前へ: [層と責務のルール](02-layer-rules.ja.md) | 次へ: [整合性とトランザクション](04-consistency-and-transactions.ja.md)
+前へ: [層と責務のルール](02-layer-rules.ja.md) | 次へ: [整合性の扱い](04-consistency-and-transactions.ja.md)

@@ -91,7 +91,7 @@ HUMQのメリットとデメリット、向いている場面、別の設計が�
 - [HUMQの概要](docs/01-overview.ja.md)
 - [層と責務のルール](docs/02-layer-rules.ja.md)
 - [設計原則](docs/03-design-principles.ja.md)
-- [整合性とトランザクション](docs/04-consistency-and-transactions.ja.md)
+- [整合性の扱い](docs/04-consistency-and-transactions.ja.md)
 - [既存アーキテクチャ・設計パターンとの比較](docs/05-comparison.ja.md)
 - [適用判断とトレードオフ](docs/05-comparison.ja.md#適用判断とトレードオフ)
 - [FastAPI構成例](docs/06-fastapi-example.ja.md)

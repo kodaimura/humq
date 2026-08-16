@@ -169,4 +169,4 @@ It is a choice to keep real-world complexity where the team can continue to trac
 
 ---
 
-Previous: [Consistency and Transactions](04-consistency-and-transactions.md) | Next: [FastAPI Example](06-fastapi-example.md)
+Previous: [Handling Consistency](04-consistency-and-transactions.md) | Next: [FastAPI Example](06-fastapi-example.md)
