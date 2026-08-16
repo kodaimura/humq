@@ -5,7 +5,7 @@ HUMQは、RDBを中心とするアプリケーションのコードを4つの責
 
 ## HUMQを構成する責務
 
-- **Handler**: HTTP、イベント、CLIなど、外界との入出力を扱う。
+- **Handler**: HTTP、イベント、CLIなど、呼び出し元との入出力を扱う。
 - **Usecase**: 業務フロー、条件分岐、状態変更、整合性、トランザクション境界を扱う。
 - **Module**: 正確に1テーブルの読み書きを扱う。
 - **Query**: 複数テーブルを横断する読み取りを扱う。書き込みは行わない。
@@ -17,7 +17,7 @@ HUMQは、RDBを中心とするアプリケーションのコードを4つの責
 
 | 処理 | 責務 |
 | --- | --- |
-| 外界との入出力 | Handler |
+| 呼び出し元との入出力 | Handler |
 | 業務フローと処理の組み立て | Usecase |
 | 1テーブルのDB操作 | Module |
 | 複数テーブルの読み取り | Query |
@@ -29,7 +29,7 @@ HUMQは、RDBを中心とするアプリケーションのコードを4つの責
 
 ```mermaid
 flowchart TD
-    input["外部入力"] --> handler["Handler"]
+    input["呼び出し元からの入力"] --> handler["Handler"]
     handler --> usecase["Usecase"]
     usecase --> module["Module<br>1テーブルの読み取り / 書き込み"]
     usecase --> query["Query<br>複数テーブルの読み取り"]
@@ -63,11 +63,14 @@ ListAccountOrdersUsecase
 ```
 
 Queryは画面や業務文脈に必要な形でデータを返しますが、状態は変更しません。
+読み取り専用のUsecaseがQueryを呼ぶだけの場合も、HandlerからQueryを直接呼びません。<br>
+Usecaseはアプリケーションが提供する操作、Queryはそのデータを読む方法を表します。
 
 ## 設計上の前提
 
 - RDBのテーブルを、安定した主要な永続化境界として扱う。
 - Moduleをテーブル構造へ意図的に結び付ける。
+- 正規化されたテーブル構造が、複数のModule呼び出しとしてUsecaseに現れることを許容する。
 - 業務が複雑になればUsecaseも肥大化するが、主要なフローは上から下へ追える状態に保つ。
 - 複数テーブルの整合性を自動では保証せず、Usecase、DB制約、テストで明示的に守る。
 

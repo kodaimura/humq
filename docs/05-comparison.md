@@ -32,7 +32,7 @@ However, the team chooses Service granularity, Model behavior, Repository respon
 and transaction ownership.<br>
 Several reasonable answers may exist for whether the same behavior belongs in Controller, Model, or Service.
 
-HUMQ removes the generic Service role and fixes input/output in Handler, business flow in Usecase,<br>
+HUMQ removes the generic Service role and fixes caller input/output in Handler, business flow in Usecase,<br>
 one-table operations in Module, and cross-table reads in Query.<br>
 It gives up some flexibility to keep placement stable across developers.
 
@@ -79,7 +79,7 @@ If each Script accesses the database directly or begins choosing different Gatew
 lower-level responsibilities and consistency handling can diverge.
 
 HUMQ adds mechanical boundaries to Transaction Script: `1 Usecase = 1 Primary Flow`,<br>
-`Module = exactly one table`, `Query = read only`, and `transaction = Usecase`.<br>
+`Module = exactly one table`, `Query = read only`, and `transaction boundaries are explicit in Usecase`.<br>
 It keeps the procedural nature of Usecase visible while making lower-level parts simple and predictable.
 
 ## Table Module / Table Data Gateway
@@ -125,7 +125,12 @@ and handle multi-table state changes and cross-table reads.
 
 - Usecase tends to grow because it concentrates business flow and consistency decisions.
 - Because Module is coupled to table structure, schema changes affect boundaries and naming.
+- A normalized table structure appears in Usecase as multiple Module calls.
 - Cross-table consistency depends on Usecase implementation, so an omitted rule can produce inconsistent data.
+
+Schema complexity becoming visible in Usecase is an intentional HUMQ tradeoff.<br>
+HUMQ prioritizes a mechanical answer to “where is the code that changes this table?”<br>
+over hiding the table structure behind abstract Domain boundaries.
 
 ### Where HUMQ Provides the Most Value
 
@@ -161,7 +166,7 @@ Mechanical boundaries do not automatically guarantee business correctness. HUMQ 
 - Make consistency, state transitions, external I/O, and transaction boundaries explicit in Usecase.
 - Keep Module closed around exactly one table without hidden writes to another table.
 - Keep Query read-only.
-- Limit Handler to input and output.
+- Limit Handler to input and output for the caller.
 - Verify the consistency rules owned by Usecase through tests.
 
 HUMQ does not make the business simple.<br>

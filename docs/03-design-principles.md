@@ -26,7 +26,16 @@ Local calculations may be extracted into helpers, but multi-Module operations an
 
 This does not allow unrelated business operations, shared mutable state,<br>
 or one-table implementation details that belong in Module to accumulate in Usecase.<br>
-Split Usecase when the result represents an independently explainable business operation, not because it exceeds a line count.
+Split Usecase by business intent, not by line count.<br>
+Being 300 or 1,000 lines long, having many branches, or calling many Modules is not sufficient reason by itself.
+
+Consider a separate Usecase when the operation:
+
+- Can run independently and has its own user action or trigger.
+- Has an independent authorization decision.
+- Can be described as an independent success, failure, or transaction boundary.
+- Forms an independent retry or compensation unit.
+- Is more naturally described as “and then, as a separate operation” in the original flow.
 
 ## Principle 3: Prefer Traceability to Reuse
 
@@ -36,7 +45,8 @@ Its invocation and the branch resulting from that decision remain visible in Use
 When exactly the same business flow appears in multiple Usecases<br>
 and can be explained as an independent business operation, it may be extracted into a shared Usecase.<br>
 The call and any branch based on its result remain visible in the caller.<br>
-When called by another Usecase, the shared Usecase participates in the caller's transaction and does not `commit` itself.
+When called by another Usecase, it participates in the caller's transaction,<br>
+and the shared Usecase does not `commit` itself.
 
 Do not extract code merely because some lines look similar<br>
 or hide multi-Module operations behind an ambiguously named shared operation.<br>
@@ -47,7 +57,7 @@ HUMQ does not avoid reuse itself. It avoids reuse that makes the location of a b
 Decisions such as "these things are related," "this is used only by this screen," or "this belongs near the Domain"<br>
 may all be reasonable, but their conclusions change with the person and situation.
 
-HUMQ fixes external input and output in Handler, business flows in Usecase,<br>
+HUMQ fixes input and output for the caller in Handler, business flows in Usecase,<br>
 one-table operations in Module, and cross-table reads in Query.<br>
 It prioritizes consistent placement across developers over making every individual boundary locally elegant.
 

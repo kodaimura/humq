@@ -66,7 +66,7 @@ Aggregate中心のDDDは、不変条件と振る舞いをDomainへ集約し、�
 
 ### Clean Architecture
 
-Clean Architectureは依存の方向を定め、業務ルールをFrameworkやDBから分離します。<br>
+Clean Architectureは依存の方向を定め、業務ルールをフレームワークやDBから分離します。<br>
 一方で、個々のルールをEntityとUsecaseのどちらに置くかや、Usecaseの粒度は設計判断に残ります。<br>
 依存関係が正しくても、その判断が分かれれば処理の置き場所は実装者によって変わります。
 
@@ -76,7 +76,7 @@ RDB中心のアプリケーションにおいて、人に委ねられる配置�
 
 ## HUMQの解決
 
-HUMQは、外部との入出力をHandler、業務フローをUsecase、<br>
+HUMQは、呼び出し元との入出力をHandler、業務フローをUsecase、<br>
 1テーブルの操作をModule、横断的な読み取りをQueryへ固定します。<br>
 カオスを引き受ける場所を限定し、それ以外の責務境界を単純で予測可能に保ちます。
 

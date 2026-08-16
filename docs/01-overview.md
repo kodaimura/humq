@@ -5,7 +5,7 @@ and keeps business complexity traceable from Usecase.
 
 ## HUMQ Responsibilities
 
-- **Handler**: Handles external input and output through HTTP, events, CLI, and similar entry points.
+- **Handler**: Handles input and output for callers through HTTP, events, CLI, and similar entry points.
 - **Usecase**: Handles business flows, branches, state changes, consistency, and transaction boundaries.
 - **Module**: Reads and writes exactly one table.
 - **Query**: Reads across multiple tables and never writes.
@@ -17,7 +17,7 @@ It is an adapter that hides communication with email providers, payment gateways
 
 | Operation | Responsibility |
 | --- | --- |
-| External I/O | Handler |
+| Caller input and output | Handler |
 | Business flow composition | Usecase |
 | One-table database access | Module |
 | Cross-table reads | Query |
@@ -29,7 +29,7 @@ Placement follows the operation target and type instead of a new interpretation 
 
 ```mermaid
 flowchart TD
-    input["External input"] --> handler["Handler"]
+    input["Caller input"] --> handler["Handler"]
     handler --> usecase["Usecase"]
     usecase --> module["Module<br>Single-table reads / writes"]
     usecase --> query["Query<br>Cross-table reads"]
@@ -63,11 +63,14 @@ ListAccountOrdersUsecase
 ```
 
 Query returns data shaped for the screen or business context without changing state.
+Even when a read-only Usecase only delegates to Query, Handler does not call Query directly.<br>
+Usecase represents the operation the application provides; Query represents how its data is read.
 
 ## Design Assumptions
 
 - RDB tables are treated as stable, primary persistence boundaries.
 - Module is intentionally coupled to table structure.
+- A normalized table structure may appear in Usecase as multiple Module calls.
 - As the business becomes complex, Usecase may grow, but its primary flow remains readable from top to bottom.
 - Cross-table consistency is not guaranteed automatically; it is protected explicitly through Usecase, database constraints, and tests.
 

@@ -38,6 +38,7 @@ app/
 │       ├── model.py
 │       └── module.py
 └── queries/
+    └── account_security.py
 ```
 
 Whether top-level directories use singular or plural names, such as `handler` or `handlers`,<br>
@@ -51,17 +52,20 @@ A FastAPI dependency creates one Session per request and passes it from Handler 
 # core/database.py
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from app.core.config import config
 
-Base = declarative_base()
-engine = create_engine(config.DATABASE_URL, pool_pre_ping=True, future=True)
+
+class Base(DeclarativeBase):
+    pass
+
+
+engine = create_engine(config.DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(
     bind=engine,
     autoflush=False,
-    autocommit=False,
-    future=True,
+    expire_on_commit=False,
 )
 
 
@@ -75,6 +79,9 @@ def get_db():
 
 Receiving Session does not itself mean that Handler performs database operations.<br>
 Handler only passes Session to Usecase; it does not query, update, or `commit`.
+
+This example sets `expire_on_commit=False` because Handler converts an ORM model returned by Usecase<br>
+after `commit` into a DTO. This prevents DTO conversion from triggering an implicit refresh query in Handler.
 
 ## Handler
 
@@ -249,31 +256,87 @@ class AccountModule:
 ```
 
 AccountModule reads and writes only the `account` table.<br>
-It neither calls another Module nor converts results into response DTOs or calls `commit`.
+It neither calls another Module nor converts results into response DTOs or calls `commit`.<br>
+Database operations use SQLAlchemy 2.x `select()` and `scalars()` instead of `Session.query()`.
 
-## Create Query Only When Needed
+## Build Read Models in Query
 
-The account list in scaf-fast reads one table, so it uses AccountModule rather than Query.
+A list that reads only one table belongs in Module.<br>
+Use Query when multiple tables are read to produce data shaped for a screen or business context.
+
+The following Query reads across `account` and `password_reset_token`<br>
+and returns a read model of account security status rather than an ORM model.
+
+```python
+# queries/account_security.py
+
+from dataclasses import dataclass
+from datetime import datetime
+
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from app.modules.account.model import Account
+from app.modules.password_reset_token.model import PasswordResetToken
+
+
+@dataclass(frozen=True)
+class AccountSecurityOverview:
+    account_id: int
+    login_id: str
+    email: str | None
+    reset_request_count: int
+    last_reset_requested_at: datetime | None
+
+
+class AccountSecurityQuery:
+    def __init__(self, db: Session):
+        self.db = db
+
+    def list_overviews(self) -> list[AccountSecurityOverview]:
+        stmt = (
+            select(
+                Account.id.label("account_id"),
+                Account.login_id,
+                Account.email,
+                func.count(PasswordResetToken.id).label("reset_request_count"),
+                func.max(PasswordResetToken.created_at).label(
+                    "last_reset_requested_at"
+                ),
+            )
+            .outerjoin(
+                PasswordResetToken,
+                PasswordResetToken.account_id == Account.id,
+            )
+            .group_by(Account.id, Account.login_id, Account.email)
+            .order_by(Account.id)
+        )
+        return [
+            AccountSecurityOverview(**row._mapping)
+            for row in self.db.execute(stmt)
+        ]
+```
+
+Handler does not call Query directly, even for a read-only operation.
 
 ```python
 # usecases/accounts/list.py
 
 from sqlalchemy.orm import Session
 
-from app.modules.account.module import AccountModule
+from app.queries.account_security import AccountSecurityQuery
 
 
-class ListAccountsUsecase:
+class ListAccountSecurityUsecase:
     def __init__(self, db: Session):
-        self.account_module = AccountModule(db)
+        self.query = AccountSecurityQuery(db)
 
     def execute(self):
-        return self.account_module.get_all()
+        return self.query.list_overviews()
 ```
 
-The reason it belongs in Module is that it reads one table, not merely that it has no join.<br>
-Create a read-only Query when a list or report first needs to span multiple tables.<br>
-Query does not call `commit` and is called from Usecase.
+Query represents how data is read; Usecase represents the operation the application provides.<br>
+The thinness of this Usecase is not a problem.
 
 ## Multiple Modules and External Operations
 
@@ -312,7 +375,7 @@ async def handle_app_error(request: Request, exc: AppError):
 
 This keeps Usecase independent of FastAPI's `HTTPException` and response format.
 
-For a complete implementation including application startup, migrations, authentication, and tests,<br>
+For a FastAPI implementation reference including application startup, migrations, authentication, and tests,<br>
 see [scaf-fast](https://github.com/kodaimura/scaf-fast).
 
 ---

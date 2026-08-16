@@ -76,7 +76,7 @@ so code placement remains stable as people change.
 
 ## The HUMQ Answer
 
-HUMQ fixes external input and output in Handler, business flows in Usecase,<br>
+HUMQ fixes input and output for the caller in Handler, business flows in Usecase,<br>
 one-table operations in Module, and cross-table reads in Query.<br>
 By limiting where chaos is absorbed, it keeps the remaining responsibility boundaries simple and predictable.
 

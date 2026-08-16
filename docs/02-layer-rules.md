@@ -5,8 +5,8 @@ External clients are adapters that hide communication with external systems and 
 
 ## Handler
 
-Handler connects external input and output, such as HTTP, events, and CLI, to the application.<br>
-It passes input to Usecase and converts the result into an external format.
+Handler connects callers such as HTTP, events, and CLI to the application.<br>
+It passes caller input to Usecase and converts the result into the caller's format.
 
 ### Belongs Here
 
@@ -47,9 +47,8 @@ It absorbs real-world branches and special cases by explicitly combining the req
 - Multiple unrelated business operations
 - Services or helpers that hide the primary business flow
 
-Usecase may read values from records, ORM models, or read models returned by Module or Query.<br>
-It must not query again through the ORM, modify models directly,<br>
-or implicitly read another table by triggering relationship lazy loading.
+Usecase may use values returned by Module or Query within the business flow.<br>
+It leaves one-table reads and writes to Module and cross-table reads to Query rather than operating the ORM directly.
 
 ### One Usecase = One Primary Flow
 
@@ -67,8 +66,11 @@ The Policy call and any branch based on its result remain visible in Usecase.
 
 When exactly the same business flow appears in multiple Usecases<br>
 and can be explained as an independent business operation, it may be extracted into a shared Usecase.<br>
-The call and any branch based on its result remain visible in the caller.<br>
-When called by another Usecase, the shared Usecase participates in the caller's transaction and does not `commit` itself.
+The call and any branch based on its result remain visible in the caller.
+
+A Usecase called directly by Handler finalizes any required transaction boundary.<br>
+A shared Usecase called by another Usecase participates in the caller's transaction<br>
+and does not `commit` itself.
 
 Do not share unrelated operations merely because some code looks similar.<br>
 When multi-Module operations must be shared, express them as a shared Usecase with a business-specific name,<br>
@@ -79,6 +81,10 @@ not as an ambiguously named helper or Service.
 Module reads and writes exactly one table.<br>
 Each table written by HUMQ has exactly one Module that owns its writes.<br>
 A business operation involving multiple tables is expressed by Usecase combining multiple Modules.
+
+As a result, a normalized table structure may appear in Usecase as multiple Module calls.<br>
+This is an intentional consequence of prioritizing a mechanical answer to where a table is changed<br>
+over abstract Domain boundaries.
 
 ### Belongs Here
 
@@ -112,6 +118,9 @@ Query is responsible for read-only operations that span multiple tables.<br>
 Placement depends on the number of tables read, not on the complexity of the read.<br>
 A read over one table belongs in Module; a read spanning multiple tables belongs in Query.
 
+Even when joins, aggregations, and search conditions make Query long,<br>
+do not split it by line count while it still represents one observation purpose or read model.
+
 ### Belongs Here
 
 - Joins and aggregations across multiple tables
@@ -127,6 +136,15 @@ A read over one table belongs in Module; a read spanning multiple tables belongs
 
 Even when the underlying ORM or database connection uses a transaction,<br>
 Query does not own the application-level transaction boundary.
+
+### Read-only Usecases
+
+Query represents how data is read.<br>
+Usecase represents which operation the application makes available to a caller.<br>
+If Handler calls Query directly, the external interface becomes coupled to the database read structure.
+
+For this reason, a read-only operation still goes through Usecase even when it only delegates to Query.<br>
+A thin Usecase is not a problem by itself.
 
 ## External Clients
 

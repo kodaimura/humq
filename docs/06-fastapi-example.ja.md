@@ -37,6 +37,7 @@ app/
 │       ├── model.py
 │       └── module.py
 └── queries/
+    └── account_security.py
 ```
 
 `handler`と`handlers`のような最上位ディレクトリの単数・複数は、HUMQの責務境界ではありません。<br>
@@ -50,17 +51,20 @@ FastAPIのDependencyでリクエストごとのSessionを作り、HandlerからU
 # core/database.py
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from app.core.config import config
 
-Base = declarative_base()
-engine = create_engine(config.DATABASE_URL, pool_pre_ping=True, future=True)
+
+class Base(DeclarativeBase):
+    pass
+
+
+engine = create_engine(config.DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(
     bind=engine,
     autoflush=False,
-    autocommit=False,
-    future=True,
+    expire_on_commit=False,
 )
 
 
@@ -74,6 +78,10 @@ def get_db():
 
 Sessionを受け取ること自体はHandlerによるDB操作ではありません。<br>
 HandlerはSessionをUsecaseへ渡すだけで、検索、更新、`commit`は行いません。
+
+この例では、Usecaseが`commit`後に返したORMモデルをHandlerがDTOへ変換するため、<br>
+`expire_on_commit=False`を指定します。これにより、DTOへの変換が、<br>
+Handlerからの暗黙的な再検索になることを防ぎます。
 
 ## Handler
 
@@ -248,31 +256,87 @@ class AccountModule:
 ```
 
 AccountModuleは`account`テーブルだけを読み書きします。<br>
-別のModuleを呼ばず、`commit`やResponse DTOへの変換も行いません。
+別のModuleを呼ばず、`commit`やResponse DTOへの変換も行いません。<br>
+DB操作には、`Session.query()`ではなくSQLAlchemy 2.xの`select()`と`scalars()`を使います。
 
-## Queryは必要になってから作る
+## Queryで読み取りモデルを作る
 
-scaf-fastのアカウント一覧は1テーブルだけを読むため、QueryではなくAccountModuleを使います。
+1テーブルだけを読む一覧はModuleに置きます。<br>
+複数テーブルから画面や業務に必要な形を作る場合は、Queryを使います。
+
+次のQueryは、`account`と`password_reset_token`を横断し、<br>
+ORMモデルではなくアカウントのセキュリティ状況を表す読み取りモデルを返します。
+
+```python
+# queries/account_security.py
+
+from dataclasses import dataclass
+from datetime import datetime
+
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from app.modules.account.model import Account
+from app.modules.password_reset_token.model import PasswordResetToken
+
+
+@dataclass(frozen=True)
+class AccountSecurityOverview:
+    account_id: int
+    login_id: str
+    email: str | None
+    reset_request_count: int
+    last_reset_requested_at: datetime | None
+
+
+class AccountSecurityQuery:
+    def __init__(self, db: Session):
+        self.db = db
+
+    def list_overviews(self) -> list[AccountSecurityOverview]:
+        stmt = (
+            select(
+                Account.id.label("account_id"),
+                Account.login_id,
+                Account.email,
+                func.count(PasswordResetToken.id).label("reset_request_count"),
+                func.max(PasswordResetToken.created_at).label(
+                    "last_reset_requested_at"
+                ),
+            )
+            .outerjoin(
+                PasswordResetToken,
+                PasswordResetToken.account_id == Account.id,
+            )
+            .group_by(Account.id, Account.login_id, Account.email)
+            .order_by(Account.id)
+        )
+        return [
+            AccountSecurityOverview(**row._mapping)
+            for row in self.db.execute(stmt)
+        ]
+```
+
+読み取り専用でも、HandlerからQueryを直接呼びません。
 
 ```python
 # usecases/accounts/list.py
 
 from sqlalchemy.orm import Session
 
-from app.modules.account.module import AccountModule
+from app.queries.account_security import AccountSecurityQuery
 
 
-class ListAccountsUsecase:
+class ListAccountSecurityUsecase:
     def __init__(self, db: Session):
-        self.account_module = AccountModule(db)
+        self.query = AccountSecurityQuery(db)
 
     def execute(self):
-        return self.account_module.get_all()
+        return self.query.list_overviews()
 ```
 
-JOINがないことではなく、参照するテーブルが1つであることがModuleへ置く理由です。<br>
-複数テーブルを横断する一覧や帳票が必要になった時点で、読み取り専用のQueryを作ります。<br>
-Queryは`commit`せず、Usecaseから呼び出します。
+Queryはデータの読み方、Usecaseはアプリケーションが提供する操作を表します。<br>
+このUsecaseが薄いことは問題ではありません。
 
 ## 複数Moduleと外部処理
 
@@ -311,7 +375,7 @@ async def handle_app_error(request: Request, exc: AppError):
 
 これにより、UsecaseはFastAPIの`HTTPException`やレスポンス形式に依存しません。
 
-完全な起動設定、マイグレーション、認証、テストを含む実装は、<br>
+起動設定、マイグレーション、認証、テストを含むFastAPI実装の参考として、<br>
 [scaf-fast](https://github.com/kodaimura/scaf-fast)を参照してください。
 
 ---
