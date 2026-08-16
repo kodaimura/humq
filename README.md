@@ -2,25 +2,85 @@
 
 <img align="right" src="assets/logo.png" alt="HUMQ logo" width="190">
 
-> 日本語版はこちら: [README.ja.md](README.ja.md)
+**Language:** [日本語](README.ja.md) | English
 
-HUMQ is a software architecture principle that redefines responsibilities often blurred in existing architectures into four practical rules:<br>
-Handler, Usecase, Module, and Query.<br>
-It does not try to make every part of a business system clean.<br>
-Instead, it designs constraints for where real-world complexity is allowed to live.
+> **Bugs can be fixed. Distortion eventually becomes unmanageable.**
 
-Handler owns the boundary with the outside world.<br>
-Usecase carries one explainable business intent, including orchestration, branching, consistency, and transaction boundaries.<br>
-Module protects local internal order around exactly one table, including single-table reads and writes.<br>
-Query observes the system through read-only, cross-table views.
+HUMQ is an application architecture that does not tolerate structural distortion.
 
-HUMQ is not about making systems impossible to break.<br>
-It is about knowing where to clean up when they do break,<br>
-without letting responsibility boundaries distort.
+Here, "distortion" means that responsibility boundaries become ambiguous,<br>
+so the structure can no longer determine where an operation belongs.
 
-> Do not force everything into order. Allow the necessary chaos inside the order.
->
-> Break, but do not distort.
+In real operations, branches and special cases emerge that do not fit the original design.<br>
+When such chaos has no defined place, the structure begins to distort.<br>
+HUMQ does not try to eliminate such chaos and impose order on everything.<br>
+It allows necessary chaos within order and uses responsibility boundaries to limit where it belongs and how far its effects may spread.
+
+> **The structure—not the individual developer—decides where code belongs.**
+
+## How a Structure Becomes Distorted
+
+Order confirmation may begin as a simple flow that saves the order, decreases inventory, and sends a notification.<br>
+Once the system enters real operation, requirements appear that do not fit the original design.
+
+- “Customers on legacy contracts must continue using the previous price.”
+- “Support staff must be able to cancel a confirmed order from an administration screen.”
+- “A different approval path is required during the month-end busy period.”
+- “Orders created by data migration must not send notifications.”
+
+Every one of these requirements may be necessary, but without a defined place for the implementation,<br>
+the developer chooses a locally reasonable criterion.
+
+- “It applies only to the administration screen, so it belongs in Controller.”
+- “It is a rule about order state, so it belongs in Model.”
+- “It coordinates several operations, so it belongs in Service.”
+
+None of these decisions is wrong at the time.<br>
+But one special-case placement becomes the precedent for the next, distributing the same business flow across multiple layers.<br>
+The code may still work, but if its correct placement cannot be explained, the structure is already distorted.
+
+## Why Structures Become Distorted in Existing Designs
+
+MVC + Service, aggregate-centered DDD, and Clean Architecture are all widely used application design approaches.<br>
+However, each leaves some responsibility boundaries to human design judgment.
+
+Distortion arises not only from wrong decisions, but when multiple reasonable decisions coexist.
+
+### MVC + Service
+
+MVC + Service separates responsibilities but does not define one exclusive home for business logic.
+
+```text
+Controller  -> It is specific to this endpoint
+Model       -> It is a rule about this data
+Service     -> It is business logic
+```
+
+Because each placement can be reasonable, mixed decisions distribute business logic across multiple layers.
+
+### Aggregate-Centered DDD
+
+Aggregate-centered DDD makes invalid states harder to create by concentrating invariants and behavior in the Domain.<br>
+Because Aggregate and Domain Service boundaries are designed from business concepts,<br>
+the team must continue to maintain the same model and placement decisions.
+
+### Clean Architecture
+
+Clean Architecture defines dependency direction and separates business rules from frameworks and databases.<br>
+It still leaves decisions such as whether a rule belongs in Entity or Usecase, and how large a Usecase should be.<br>
+Dependencies can remain correct while differing decisions make code placement vary between developers.
+
+HUMQ does not reject these designs.<br>
+For relational-database-centered applications, it replaces some human placement decisions with mechanical responsibility boundaries<br>
+so code placement remains stable as people change.
+
+## The HUMQ Answer
+
+HUMQ fixes external input and output in Handler, business flows in Usecase,<br>
+one-table operations in Module, and cross-table reads in Query.<br>
+By limiting where chaos is absorbed, it keeps the remaining responsibility boundaries simple and predictable.
+
+Its primary target is applications that use a relational database as their main persistence model and handle multi-table state changes and cross-table reads.
 
 ## Documentation
 
@@ -28,30 +88,9 @@ without letting responsibility boundaries distort.
 - [Layer rules](docs/02-layer-rules.md)
 - [Design principles](docs/03-design-principles.md)
 - [Consistency and transactions](docs/04-consistency-and-transactions.md)
-- [Comparison with existing architectures](docs/05-comparison.md)
+- [Architecture comparison](docs/05-comparison.md)
+- [Adoption and tradeoffs](docs/05-comparison.md#adoption-and-tradeoffs)
 - [FastAPI example](docs/06-fastapi-example.md)
-
-## One-Sentence Definition
-
-HUMQ redefines ambiguous application responsibilities into four practical rules that separate where order is protected from where business chaos is absorbed.
-
-## Four Responsibility Rules
-
-| Layer | Role | Main responsibility |
-| --- | --- | --- |
-| Handler | Boundary | Receives HTTP requests or events and transforms input/output |
-| Usecase | Intent and reality | Handles business flows, consistency, and transactions |
-| Module | Local order | Provides reads and writes closed around exactly one table |
-| Query | Observation | Handles read-only joins, aggregations, and cross-table reads |
-
-## Basic Principles
-
-- Keep Handler thin.
-- Let Usecase absorb real-world complexity, but keep each Usecase tied to one explainable business intent.
-- Keep Module closed around exactly one table, unaware of other Modules.
-- Keep Query read-only. Query does not own transaction boundaries.
-- Put transaction boundaries in Usecase.
-- Allow breakage, but do not allow responsibility boundaries to distort.
 
 ## License
 

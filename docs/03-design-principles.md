@@ -1,78 +1,97 @@
 # Design Principles
 
-HUMQ is not a design for keeping everything clean. It is a design for deciding where mess is allowed and protecting the places that must not distort.
+HUMQ does not try to eliminate essential business complexity. It keeps lower-level parts simple so that complexity remains traceable through their composition.
 
-## Principle 1: Break, but Do Not Distort
+## Principle 1: Keep Essential Complexity Visible
 
-HUMQ distinguishes breaking from distorting.
+Business-significant order, branches, state transitions, multi-table writes, external I/O, and transaction boundaries remain visible from Usecase.
 
-| Viewpoint | Breaking | Distorting |
-| --- | --- | --- |
-| Cause | Implementation mistakes, requirement changes, temporary gaps | Responsibility leaks, mixed layers, conceptual collapse |
-| Repairability | Fixable | Hard to fix |
-| HUMQ treatment | Accepted as local chaos | Avoided as structural damage |
-| Main repair area | Usecase | The whole structure |
+ORM mechanics, SQL construction, transport protocols, and local data conversion may be hidden as implementation details. HUMQ does not reject encapsulation. It rejects encapsulation used merely to make a business flow look short.
 
-Business requirements may become complex inside Usecase. That means Usecase is absorbing real-world chaos.
+```text
+Implementation details may be hidden.
+Business flows should not be hidden.
+```
 
-By contrast, Handler starting database operations, Module calling another Module, Module owning multiple tables, Query starting writes, or business flow leaking into Module are distortions. Once distortion enters the system, people begin placing code by personal preference, and order is lost.
+## Principle 2: Prefer Local Complexity to Hidden Complexity
 
-## Principle 2: Design Freedom
+The important measure is not the number of lines. It is the number of places someone must follow to understand one business operation.
 
-If freedom is fully forbidden, deviation leaks somewhere else. HUMQ designs Usecase as the place for freedom.
+A 300-line Usecase understandable from top to bottom may be preferable to 100 lines scattered across several Services. This does not approve giant functions unconditionally.
 
-Usecase absorbs:
+**Acceptable Usecase**
 
-- Business exceptions
-- Temporary requirements
-- Complex branching
-- Combinations of multiple Modules
-- Explicit control of consistency
+- Represents one explainable business intent
+- Makes important steps, branches, I/O, and transaction boundaries traceable
+- Gives each Module, Query, and external client a clear role
 
-Chaos is allowed, but not everything goes. A Usecase may be complex, but its complexity must remain explainable as one business intent.
+**Usecase to reconsider**
 
-Usecase freedom does not justify bundling unrelated business operations into one giant Usecase. When the same business procedure is duplicated across multiple Usecases, identify the responsibility and extract it appropriately. But do not push business logic into Module only to make Usecase look clean.
+- Mixes unrelated business intents
+- Obscures order through deep nesting or shared mutable state
+- Contains local one-table work that belongs in Module
+- Hides the business flow inside extracted helpers
 
-Because this freedom exists, Handler, Module, and Query can remain relatively pure. This is how HUMQ connects freedom to "Break, but do not distort": Usecase may change and be repaired, while the structural boundaries stay stable.
+## Principle 3: Give Module a Mechanical Boundary
 
-## Principle 3: Treat Module as the Laws of the World
+A Module is a small, predictable operation unit that owns exactly one table. It is not an Aggregate or broad Domain concept and knows neither other Modules nor business flows.
 
-Module is the stable local table order inside the application.
+If "related tables" define the boundary, the team must repeatedly decide how far relatedness extends and where exceptions belong. HUMQ removes that design decision by choosing one table as a mechanical, unambiguous boundary.
 
-A Module is closed around exactly one table. It does not represent an Aggregate or a broad business subject. It does not know other Modules. It does not know business flows. It provides table-specific operations as a part called from Usecase.
+```text
+UserModule       -> users
+OrderModule      -> orders
+OrderItemModule  -> order_items
+```
 
-If exceptional business concerns are placed in Module, Module becomes harder to reuse. It also starts behaving unnaturally from the perspective of Usecases that do not need that exception.
+One business concept may span multiple tables; Usecase expresses that business whole. Avoid ORM cascades or hooks that silently modify another table because they break this predictability.
 
-If a business operation spans three tables, HUMQ prefers three Modules coordinated by one Usecase over one large Module.
+## Principle 4: Compose Business Flows Explicitly
 
-## Principle 4: Keep Query as Observation
+Operations spanning multiple tables appear in Usecase as calls to their Modules.
 
-Single-table reads belong in Module. Reads that span multiple tables should not be forced into Module. Module order is table-based, while cross-table reads have a different nature.
+```text
+CreateOrderUsecase
+  OrderModule.create()
+  OrderItemModule.createMany()
+  InventoryModule.decrease()
+  AuditLogModule.create()
+```
 
-Query is the layer that accepts this cross-cutting nature. But it does not write. It only observes.
+A Usecase shows one explainable business intent and its primary flow in one file. Local calculations and pure Policies may be extracted, but coordination of multiple Modules, external I/O, and state transitions must not disappear behind a helper Service.
 
-## Principle 5: Do Not Hide Consistency
+When several Usecases share a business decision, the decision may be reused while its invocation and the resulting branch remain visible in each Usecase. Reuse and visibility can coexist.
 
-HUMQ makes consistency explicit in Usecase.
+## Principle 5: Keep Query as Cross-Table Observation
 
-Designs like DDD Aggregate, where consistency is enclosed internally, are theoretically powerful. In practice, however, business operations often live at the Usecase level, and enclosing consistency too deeply can reduce reusability.
+Single-table reads belong in Module. Reads that span multiple tables belong in read-only Query code.
 
-In HUMQ, Usecase shows which Modules are combined to maintain consistency. This trades automatic safety for structural visibility and changeability.
+Joins and aggregations shaped by screens, searches, or reports do not need to be forced into write-oriented Module boundaries. Query still does not write or own transaction boundaries.
 
-## Principle 6: Prioritize Responsibility Boundaries
+## Principle 6: Do Not Hide Consistency or Side Effects
 
-The most important thing in HUMQ is that each layer's responsibility stays stable.
+Usecase shows which Modules are combined, in what order, and which range succeeds or fails as a unit. It also reveals where external side effects occur and what happens when they fail.
 
-Crossing a boundary because it is convenient may be fast in the short term, but it eventually destroys the criteria for where code belongs.
+DDD Aggregates are a strong way to protect invariants within their boundaries. HUMQ does not reject them; it chooses table-sized parts and explicit Usecase-level consistency as its default. This deliberately favors traceability over automatic protection.
+
+## Principle 7: A Broken System Can Be Fixed. A Distorted Structure Cannot
+
+Here, "breakage" means ordinary bugs and implementation mistakes that cause the system to stop behaving as expected. It does not mean tolerating bugs or leaving defects unfixed. Correcting the implementation that caused the problem restores the expected behavior.
+
+Here, "distortion" means that structural responsibility boundaries change with the person or situation. Individual features may still work, but neither the correct placement nor the repair scope remains clear. HUMQ does not guarantee the absence of bugs; it prioritizes preventing bug fixes and new special cases from distorting the entire structure.
+
+Handler performing database operations, Module calling another Module, Module modifying multiple tables, Query writing, or business flow disappearing into a helper Service are structural distortions. Once distortion enters, code placement varies by developer and change impact becomes difficult to trace.
 
 When unsure, decide by asking these questions:
 
 | Question | Place |
 | --- | --- |
 | Is it about input/output from the outside world? | Handler |
-| Is it about business flow or consistency? | Usecase |
+| Is it about business flow, consistency, state transitions, or external I/O? | Usecase |
 | Is it an operation closed around exactly one table? | Module |
 | Is it a read that spans multiple tables? | Query |
+
+> Keep the parts simple. Keep the important chaos visible.
 
 ---
 

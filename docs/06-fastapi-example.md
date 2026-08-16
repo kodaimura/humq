@@ -37,14 +37,12 @@ Handler
   ↓
 Usecase
   ├── AccountModule
-  └── AccountRoleModule
-
-Handler
-  ↓
-Usecase
-  ↓
-Query
+  ├── AccountRoleModule
+  ├── Query (when a cross-table read is needed)
+  └── Mailer (when an external side effect is needed)
 ```
+
+Module, Query, and external clients are all called from Usecase. Handler does not call Query directly, and an external client is not treated as a Module.
 
 ## Handler Example
 
@@ -114,7 +112,9 @@ def signup(session, email: str, name: str, default_role: str, mailer):
 
 Usecase owns the business flow and transaction boundary. It coordinates table-sized Modules.
 
-The external side effect happens after the database transaction commits. For stronger consistency, use a pattern such as Outbox, but HUMQ itself does not require it.
+This file reveals the primary flow from top to bottom: create Account, create AccountRole, commit, then send the welcome mail. HUMQ does not move that order or external I/O into another Service merely to make Usecase look shorter.
+
+The external side effect happens after the database transaction commits. In this example, the database remains committed if email delivery fails. A real system explicitly chooses its required guarantee: surface the failure, record and retry it, or use a pattern such as Outbox.
 
 ```python
 # usecases/accounts/list_accounts.py
@@ -160,7 +160,7 @@ def create(session, account_id: int, role: str):
     return account_role
 ```
 
-Each Module is closed around exactly one table. `AccountModule` does not call `AccountRoleModule`, and `AccountRoleModule` does not call `AccountModule`.
+Each Module is closed around exactly one table and owns writes to that table. `AccountModule` does not call `AccountRoleModule`, and `AccountRoleModule` does not call `AccountModule`. Avoid silently updating the other table through an ORM cascade or hook as well.
 
 Repository is not required. If ORM operations are readable enough inside Module, keep them there. Extract persistence code only as an internal helper inside Module when it grows too large.
 
@@ -182,7 +182,7 @@ def list_account_overview(session):
     )
 ```
 
-Query is read-only. It may read across multiple tables, but it does not write and does not own transaction boundaries.
+Query is read-only. It may read across multiple tables, but it does not write and does not own transaction boundaries. A read, search, or aggregation closed around one table remains in Module even when it is complex.
 
 ## Placement Guide
 
@@ -192,10 +192,13 @@ When unsure during implementation, use these criteria:
 | --- | --- |
 | API input and output | Handler |
 | Business procedure | Usecase |
+| Primary flow of one business operation | One Usecase file |
 | Transaction boundary | Usecase |
 | Single-table read or write | Module |
 | Read intent | Usecase |
 | Cross-table read | Query, called from Usecase |
+| Pure decision shared by multiple Usecases | Policy or helper; keep its invocation and resulting branch in Usecase |
+| Mail, payments, or external APIs | External client, not Module; call it explicitly from Usecase |
 
 ---
 

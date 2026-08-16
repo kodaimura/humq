@@ -37,14 +37,12 @@ Handler
   ↓
 Usecase
   ├── AccountModule
-  └── AccountRoleModule
-
-Handler
-  ↓
-Usecase
-  ↓
-Query
+  ├── AccountRoleModule
+  ├── Query（複数テーブルを横断する読み取りが必要な場合）
+  └── Mailer（外部Side Effectが必要な場合）
 ```
+
+Module、Query、外部clientはすべてUsecaseから呼びます。HandlerがQueryを直接呼んだり、外部clientをModuleとして扱ったりはしません。
 
 ## Handler例
 
@@ -114,7 +112,9 @@ def signup(session, email: str, name: str, default_role: str, mailer):
 
 Usecaseは業務フローとトランザクション境界を持ちます。テーブル単位のModuleを組み合わせる責務もUsecaseにあります。
 
-外部Side EffectはDBトランザクションのcommit後に実行します。より強い整合性が必要な場合はOutbox Patternなどを使えますが、HUMQ自体はOutboxを前提にしません。
+このファイルから、「Account作成 → AccountRole作成 → commit → welcome mail」という主要なフローを上から下まで追えます。この順序や外部I/Oを別のServiceへ移してUsecaseを短く見せることはしません。
+
+外部Side EffectはDBトランザクションのcommit後に実行します。この例では、メール送信が失敗してもDB更新はcommit済みです。実システムでは、失敗を呼び出し元へ返す、記録して再送する、Outbox Patternを使うなど、必要な保証を明示的に選びます。
 
 ```python
 # usecases/accounts/list_accounts.py
@@ -160,7 +160,7 @@ def create(session, account_id: int, role: str):
     return account_role
 ```
 
-各Moduleは正確に1テーブルに閉じます。`AccountModule` は `AccountRoleModule` を呼びません。`AccountRoleModule` も `AccountModule` を呼びません。
+各Moduleは正確に1テーブルに閉じ、そのテーブルの書き込みを所有します。`AccountModule` は `AccountRoleModule` を呼びません。`AccountRoleModule` も `AccountModule` を呼びません。ORM cascadeやhookによって相手のテーブルを暗黙に更新することも避けます。
 
 Repositoryは必須ではありません。ORM操作がModule内で十分に読めるなら、そのままModuleに書きます。永続化処理が大きくなった場合だけ、Module内部の補助として切り出します。
 
@@ -182,7 +182,7 @@ def list_account_overview(session):
     )
 ```
 
-Queryは読み取り専用です。複数テーブルを横断して読んで構いませんが、書き込みはせず、トランザクション境界も所有しません。
+Queryは読み取り専用です。複数テーブルを横断して読んで構いませんが、書き込みはせず、トランザクション境界も所有しません。1テーブルだけに閉じた検索や集計は、複雑でもModuleに置きます。
 
 ## 判断基準
 
@@ -192,10 +192,13 @@ Queryは読み取り専用です。複数テーブルを横断して読んで構
 | --- | --- |
 | APIの入力と出力 | Handler |
 | 業務手続き | Usecase |
+| 1つの業務処理の主要なフロー | 1つのUsecaseファイル |
 | トランザクション境界 | Usecase |
 | 1テーブルに閉じた読み書き | Module |
 | 読み取り意図 | Usecase |
 | 複数テーブルをまたぐ読み取り | Usecaseから呼ばれるQuery |
+| 複数Usecaseで共有する純粋な判定 | Policyまたは補助関数。呼び出しと分岐はUsecaseに残す |
+| Mail、決済、外部API | Moduleではない外部client。Usecaseから明示的に呼ぶ |
 
 ---
 

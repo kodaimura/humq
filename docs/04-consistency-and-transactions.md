@@ -1,14 +1,16 @@
 # Consistency and Transactions
 
-In HUMQ, consistency and transactions are Usecase responsibilities.
+In HUMQ, consistency and transaction boundaries are Usecase responsibilities. The important question is not only where `commit` occurs, but what succeeds atomically and what is handled as a separate failure. That answer must remain visible from Usecase.
 
 ## Basic Rules
 
-- Start and end transactions in Usecase.
+- Only Usecase may own application transaction boundaries.
+- By default, group database writes that must be atomic into one transaction.
 - Module does not call `commit` or `rollback`.
 - Even if Repository is extracted, it does not call `commit` or `rollback`.
 - Make consistency across multiple Modules explicit in Usecase.
 - Query is read-only and does not own transaction boundaries.
+- Do not perform external side effects in the middle of a database transaction.
 
 ## Why Transactions Belong in Usecase
 
@@ -23,19 +25,24 @@ When Usecase owns transactions, the following become explicit:
 - Which range succeeds or fails as one unit.
 - Which consistency rules are intentionally protected.
 
-## Difference from DDD
+HUMQ does not force a one-to-one mapping of `Usecase = Transaction`. A read-only Usecase may not need an explicit transaction. A long-running business operation involving external systems may require several database transactions and compensating actions.
 
-In DDD, the Aggregate Root protects consistency. In HUMQ, Usecase makes consistency explicit.
+Even then, each boundary, side effect, and post-failure policy remains traceable from Usecase. When using a transaction decorator, its declaration must make clear which Usecase and which scope it wraps.
 
-| Viewpoint | DDD | HUMQ |
+## Difference from Aggregate-Centered Designs
+
+DDD Aggregates are a strong way to protect invariants within an Aggregate boundary. An Application Service may also coordinate multiple Aggregates, so DDD does not inherently hide business flows.
+
+The difference is the default boundary.
+
+| Viewpoint | Aggregate-centered design | HUMQ |
 | --- | --- | --- |
-| Consistency responsibility | Aggregate | Usecase |
-| Transaction boundary | Aggregate unit | Usecase unit |
-| Flexibility | Strongly depends on boundaries | Easy to coordinate table-sized Modules |
-| Visibility | Hidden inside | Visible in code |
-| Reusability | Tends to stay inside Aggregate | Easier at Module level |
+| Local consistency | Expressed inside Aggregate | Expressed in a one-table Module |
+| Cross-boundary consistency | Coordinated in an application layer or similar place | Made explicit in Usecase |
+| Lower-level boundary | Chosen through Domain Model design | Mechanically fixed at one table |
+| Main tradeoff | Strong invariants, harder boundary design | High traceability, less automatic protection |
 
-HUMQ prioritizes explicit order over automatic consistency.
+HUMQ prioritizes traceable operation targets and consistency over automatic protection.
 
 ## Implementation Sketch
 
@@ -60,7 +67,7 @@ def assign_role(session, account_id: int, role_id: int) -> None:
         )
 ```
 
-This Usecase binds the order of Account, Role, AccountRole, and AuditLog into one business intent.
+This Usecase makes the operations on Account, Role, AccountRole, and AuditLog—and their atomic scope—visible in one place.
 
 ## External Side Effects
 
@@ -74,7 +81,18 @@ commit
 external side effect
 ```
 
-This avoids a simple inconsistency where the email succeeds but the database commit fails and rolls back. If stronger consistency is required, use a pattern such as Outbox. HUMQ itself does not require Outbox; it only requires that transaction boundaries and side effects are visible in Usecase.
+This avoids an inconsistency where the email succeeds but the database commit fails and rolls back. However, the email can still fail after the commit. Reordering the operations cannot make a database and an external system atomic.
+
+Usecase selects a failure policy according to the required guarantee.
+
+| Situation | Policy |
+| --- | --- |
+| Notification failure is acceptable | Send after commit and record failures |
+| Delivery must be retried | Design idempotent delivery and retries |
+| A committed delivery request must not be lost | Use the Outbox Pattern |
+| External state changes, as with payments | Design idempotency, a Saga, or compensation |
+
+With Outbox, Usecase writes to an outbox table through a normal Module in the same transaction, and a separate worker delivers it. HUMQ does not require Outbox. It requires the transaction boundary, side effect, and failure guarantee to remain traceable from Usecase.
 
 Mailers, payment gateways, and external API clients are not Modules, because they do not correspond to one table.
 
@@ -111,7 +129,7 @@ HUMQ is not a design that automatically guarantees all consistency.
 
 Instead, it moves consistency to a visible place. By reading the Usecase, you can see which forms of order are connected, in what order they run, and which range is allowed to fail together.
 
-This is a choice to trade implicit consistency for explicit order. It does not ignore consistency; it clarifies where designers must handle it responsibly.
+This trades automatic, implicit protection for explicit consistency and traceability. It does not ignore consistency; it clarifies where designers must handle it responsibly.
 
 ## Query and Transactions
 
