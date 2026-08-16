@@ -1,4 +1,4 @@
-# HUMQ - Designing Chaos in Architecture
+# HUMQ - An Architecture for Designing Chaos
 
 <img align="right" src="assets/logo.png" alt="HUMQ logo" width="190">
 
@@ -74,7 +74,7 @@ HUMQ does not reject these designs.<br>
 For relational-database-centered applications, it replaces some human placement decisions with mechanical responsibility boundaries<br>
 so code placement remains stable as people change.
 
-## The HUMQ Answer
+## HUMQ's Solution
 
 HUMQ fixes input and output for the caller in Handler, business flows in Usecase,<br>
 one-table operations in Module, and cross-table reads in Query.<br>

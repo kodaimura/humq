@@ -1,8 +1,7 @@
 # Comparison with Existing Architectures and Design Patterns
 
-The difference between HUMQ and existing designs is not a matter of superiority.<br>
-It is a difference in what each design protects, which decisions remain human judgments,<br>
-and where complexity is absorbed.
+The difference between HUMQ and existing designs is not a matter of superiority, but of<br>
+what each design protects, which decisions remain human judgments, and where complexity is absorbed.
 
 MVC, layered architecture, Clean Architecture, DDD, Transaction Script, Table Module, and CQRS<br>
 are not concepts at the same level.<br>
@@ -25,8 +24,7 @@ Instead, it fixes where those concerns must be implemented and verified.
 ## MVC + Service / Layered Architecture
 
 MVC + Service and layered architecture separate input/output, business processing, and data access.<br>
-They are widely understood and flexible enough to adjust layer granularity<br>
-to the scale and characteristics of a system.
+They are widely understood, flexible designs whose layer granularity can be adjusted to a system's scale and characteristics.
 
 However, the team chooses Service granularity, Model behavior, Repository responsibilities,<br>
 and transaction ownership.<br>
@@ -59,14 +57,15 @@ Its strength is allowing the model itself to protect complex consistency rules.
 
 Aggregate, Entity, Value Object, and Domain Service boundaries are determined<br>
 through continuing domain modeling.<br>
-Cross-Aggregate flows, cross-table screens, and temporary requirements<br>
+Cross-Aggregate operations, cross-cutting UI requirements, and temporary measures<br>
 still require shared team judgment about placement.
 
 HUMQ uses relational tables rather than Domain concepts as Module boundaries.<br>
 Cross-table consistency remains explicit in Usecase, making business flow easier to trace.<br>
 However, if a Usecase fails to call a required Module,<br>
 a consistency rule may be omitted.<br>
-HUMQ is not simplified DDD; it prioritizes predictable placement over protection through modeling.
+HUMQ is not simplified DDD;<br>
+it is a different choice that prioritizes predictable placement over protection through modeling.
 
 ## Transaction Script
 
@@ -79,7 +78,8 @@ If each Script accesses the database directly or begins choosing different Gatew
 lower-level responsibilities and consistency handling can diverge.
 
 HUMQ adds mechanical boundaries to Transaction Script: `1 Usecase = 1 Primary Flow`,<br>
-`Module = exactly one table`, `Query = read only`, and `transaction boundaries are explicit in Usecase`.<br>
+`Module = exactly one table`, and `Query = read only`,<br>
+with transaction boundaries made explicit in Usecase.<br>
 It keeps the procedural nature of Usecase visible while making lower-level parts simple and predictable.
 
 ## Table Module / Table Data Gateway
@@ -88,7 +88,8 @@ Table Module organizes business logic for one table or view in a single componen
 while Table Data Gateway centralizes data access for one table.<br>
 Both resemble HUMQ's Module in treating a relational table as an explicit boundary.
 
-Neither pattern by itself determines where multi-table business flow, cross-table reads, external I/O, and transactions are composed.
+Neither pattern by itself determines where multi-table business flows,<br>
+cross-table reads, external I/O, and transactions are composed.
 
 A HUMQ Module is limited to operations on exactly one table<br>
 and may not operate on another table, own a business flow, or manage transactions.<br>
@@ -154,7 +155,7 @@ and a simpler MVC or layered architecture may be sufficient.
 ### Where Another Design Should Lead
 
 - One domain state spans many tables that must be updated as a single unit.
-- A missed update can directly corrupt financial, inventory, or contract state, so consistency cannot depend only on each Usecase implementation.
+- A missed update directly causes inconsistency in financial, inventory, or contract state, so consistency cannot depend only on each Usecase implementation.
 - The same business logic must be reused across systems with different database schemas or persistence mechanisms.
 - Processing spans multiple external systems over long periods, with retry and compensation state as central concerns.
 

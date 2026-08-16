@@ -1,8 +1,7 @@
 # FastAPI Example
 
-This chapter uses the structure and implementation style of<br>
-[scaf-fast](https://github.com/kodaimura/scaf-fast) as a reference for applying HUMQ to FastAPI.<br>
-Configuration and implementation details not needed for the explanation are omitted.
+Using the structure and implementation style of [scaf-fast](https://github.com/kodaimura/scaf-fast) as a reference,<br>
+this chapter shows how to apply HUMQ to FastAPI. Configuration and implementation details unnecessary to the explanation are omitted.
 
 HUMQ does not require class-based Usecases or Modules.<br>
 This example follows scaf-fast by injecting the database Session and dependencies through constructors.
@@ -80,8 +79,9 @@ def get_db():
 Receiving Session does not itself mean that Handler performs database operations.<br>
 Handler only passes Session to Usecase; it does not query, update, or `commit`.
 
-This example sets `expire_on_commit=False` because Handler converts an ORM model returned by Usecase<br>
-after `commit` into a DTO. This prevents DTO conversion from triggering an implicit refresh query in Handler.
+Because Handler converts an ORM model returned by Usecase after `commit` into a DTO,<br>
+this example sets `expire_on_commit=False`. This prevents DTO conversion<br>
+from triggering an implicit refresh query in Handler.
 
 ## Handler
 

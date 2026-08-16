@@ -67,8 +67,7 @@ Usecase makes explicit the business condition under which each operation is call
 ## Consistency with External Systems
 
 Sending email or calling a payment API cannot be handled in the same transaction as the database.<br>
-The database may `rollback` after the external operation succeeds,<br>
-or the external operation may fail after the database `commit` succeeds.
+The database may `rollback` after the external operation succeeds, or the external operation may fail after the database `commit` succeeds.
 
 - Run notifications whose failure is acceptable after the database `commit`.
 - When a delivery request must not be lost, record it in an outbox table in the same transaction.

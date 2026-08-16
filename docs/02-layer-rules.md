@@ -35,7 +35,7 @@ It absorbs real-world branches and special cases by explicitly combining the req
 - State transitions and consistency decisions
 - Transaction boundaries
 - External client calls and post-failure policy
-- Exceptional business requirements
+- Special-case business requirements
 
 ### Does Not Belong Here
 
