@@ -1,199 +1,177 @@
 # Layer Rules
 
-This document defines what belongs in each HUMQ layer, what does not, and how files should be named.
+HUMQ determines code placement through four responsibilities: Handler, Usecase, Module, and Query.<br>
+External clients are adapters that hide communication with external systems and are not a HUMQ layer.
 
 ## Handler
 
-Handler is the entry point from the outside world. It receives inputs such as HTTP requests, events, or CLI commands, then passes them to Usecase.
+Handler connects external input and output, such as HTTP, events, and CLI, to the application.<br>
+It passes input to Usecase and converts the result into an external format.
 
 ### Belongs Here
 
-- Routing
-- Receiving requests
-- Shaping responses
-- Connecting input/output schemas
-- Passing context obtained from the outside world, such as the authenticated user
+- Entry points for routes, event subscriptions, and CLI commands
+- Receiving requests and messages
+- Input-format validation, such as required fields and types
+- Passing external context, such as an authenticated user or request metadata
+- Calling Usecase and converting results into responses or status codes
 
 ### Does Not Belong Here
 
-- Business logic
-- Database operations
-- Transaction management
-- Combining multiple Modules
-- Building aggregations or joins
-
-### Naming
-
-Handler filenames should match URL resources and use plural nouns.
-
-```text
-handlers/
-├── accounts.py
-├── projects.py
-├── users.py
-└── health.py
-```
+- Business conditions or authorization decisions
+- Direct calls to Module, Query, or external clients
+- Database operations or transaction management
+- Joins or aggregations
 
 ## Usecase
 
-Usecase represents one explainable business intent. It combines multiple Modules and absorbs real-world exceptions, branches, consistency, and transaction boundaries.
-
-The goal of Usecase is not to make its caller look short. It is to make the important steps of one business operation traceable in one place.
+Usecase represents one explainable business operation and its primary flow.<br>
+It absorbs real-world branches and special cases by explicitly combining the required Modules, Query code, and external clients.
 
 ### Belongs Here
 
-- Business flows
-- Conditional branches
-- Combining multiple Modules
-- Using Query
-- Calling mailers or external clients when a business flow needs them
+- Business-significant operation order and branches
+- Combining Modules and reading through Query
+- State transitions and consistency decisions
 - Transaction boundaries
-- State transitions and handling for external side-effect failures
+- External client calls and post-failure policy
 - Exceptional business requirements
 
 ### Does Not Belong Here
 
-- Direct dependency on HTTP requests or responses
-- Cross-cutting reads written as raw SQL
-- Direct dependency on ORM models
-- Designs that delegate `commit` / `rollback` to Module
-- Calling another Usecase in a way that hides the primary business flow
-- Unrelated business operations bundled together only because they share some code
+- Dependencies on external formats such as HTTP requests or responses
+- Direct database access through ORM sessions or query APIs
+- Modifying and persisting ORM models directly
+- Cross-table reads written as raw SQL
+- External-client implementation details such as communication mechanics or response parsing
+- Multiple unrelated business operations
+- Services or helpers that hide the primary business flow
+
+Usecase may read values from records, ORM models, or read models returned by Module or Query.<br>
+It must not query again through the ORM, modify models directly,<br>
+or implicitly read another table by triggering relationship lazy loading.
 
 ### One Usecase = One Primary Flow
 
-One Usecase shows one explainable business intent and its primary flow in one file. At minimum, that file must reveal:
+The primary operation order and branches, Modules and Query code used, state changes,<br>
+transaction boundaries, external I/O, and post-failure policy must be readable from the Usecase file.
 
-- The order of business-significant operations
-- Important branches
-- Which Modules and Query code are used
-- Where external I/O occurs
-- State changes and transaction boundaries
-
-Length alone does not make a Usecase bad. A 300-line Usecase whose business flow is understandable from top to bottom may be preferable to 100 lines scattered across several Services.
-
-Length does not excuse disorder. Reconsider the Usecase boundary or expression when unrelated intents are mixed, deep nesting obscures order, or shared mutable state keeps growing.
+Judge Usecase by whether one business operation remains traceable from top to bottom, not by its length.<br>
+See [Design Principles](03-design-principles.md) for readability and decomposition principles.
 
 ### Helpers, Shared Rules, and Shared Usecases
 
-Local calculations, data conversions, and formatting may be extracted into functions or helper files when doing so does not hide the business flow.
+Local calculations and data conversions may be extracted into functions when doing so does not hide the business flow.<br>
+Business decisions used by multiple Usecases may be shared as side-effect-free Policies or functions.<br>
+The Policy call and any branch based on its result remain visible in Usecase.
 
-When multiple Usecases need the same business decision, it may be shared as a pure Policy or decision function. That helper must not call Module, Query, or external clients and must not own transactions. The Policy invocation and the branch based on its result remain explicit in Usecase.
+When exactly the same business flow appears in multiple Usecases<br>
+and can be explained as an independent business operation, it may be extracted into a shared Usecase.<br>
+The call and any branch based on its result remain visible in the caller.<br>
+When called by another Usecase, the shared Usecase participates in the caller's transaction and does not `commit` itself.
 
-When exactly the same business flow appears in multiple Usecases and can be explained as an independent business operation, it may be extracted into a shared Usecase. The call and any branch based on its result remain visible in the caller. When called by another Usecase, the shared Usecase participates in the caller's transaction and does not `commit` itself.
-
-A helper is not a new Service layer. Moving coordination of multiple Modules or external I/O into a helper would hide the business flow again.
-
-### Naming
-
-Usecase directories should use plural resource names, like Handler. Each Usecase file should be a verb or verb phrase.
-
-```text
-usecases/
-├── accounts/
-│   ├── signup.py
-│   ├── login.py
-│   ├── update_profile.py
-│   └── delete.py
-└── projects/
-    ├── create.py
-    └── archive.py
-```
-
-`usecases/accounts/signup.py` is enough because the directory already provides the context. Avoid repeating the target in names like `register_user.py`. Expose one Usecase entry point and keep its primary flow traceable from that file.
+Do not share unrelated operations merely because some code looks similar.<br>
+When multi-Module operations must be shared, express them as a shared Usecase with a business-specific name,<br>
+not as an ambiguously named helper or Service.
 
 ## Module
 
-A Module is closed around exactly one table.
-
-Module is not a Business Usecase, Aggregate, or broad domain subject. It is a small, stable unit of local table order. If a business operation spans three tables, HUMQ prefers three Modules coordinated by one Usecase over one large Module.
-
-This constraint removes recurring judgments about relatedness or Aggregate boundaries and makes the operation target predictable from the Module name. Modules do not call other Modules. Business flows that span multiple tables belong in Usecase.
-
-Each writable table managed by HUMQ has exactly one Module that owns its writes. Query may read that table, but another Module must not expose a second write API for it. A join table that is written also has its own Module.
+Module reads and writes exactly one table.<br>
+Each table written by HUMQ has exactly one Module that owns its writes.<br>
+A business operation involving multiple tables is expressed by Usecase combining multiple Modules.
 
 ### Belongs Here
 
 - Reads, creates, updates, and deletes closed around one table
-- Simple single-table lookups used by Usecase
-- Table-specific invariants
-- Meaningful operations implemented with an ORM or similar tool
+- Searches and aggregations over one table
+- Constraints and state changes decidable from that table's values alone
+- Concurrency control for one table, such as conditional updates or locks
+- Persistence implementation details using an ORM or SQL
 
 ### Does Not Belong Here
 
-- Business flows spanning multiple Modules
-- Operations spanning multiple tables
-- Temporary branches driven by a specific Usecase
-- Business logic extracted only to make Usecase look cleaner
-- Transaction management
-- Direct dependency on other Modules
-- Reads centered on joins or aggregations
-- External integrations that do not correspond to a table, such as mailers, payment gateways, or API clients
-- Hidden reads from another table through ORM relationship lazy loading
-- Hidden writes to another table through ORM cascades, event hooks, or callbacks
+- Reads or writes spanning multiple tables
+- Dependencies on other Modules
+- Usecase-specific branches or business flows
+- Finalizing transaction boundaries with `commit` or `rollback`
+- Communication with external systems
+- Hidden reads of another table through relationship lazy loading
+- Hidden writes to another table through ORM cascades, hooks, or callbacks
 
-A Module operation must not silently modify another application table. If a database trigger or referential cascade is unavoidable, document the behavior so it remains traceable from Usecase and manage it as an architectural exception to the normal HUMQ rule.
+Query may read a table owned by Module,<br>
+but another Module must not expose a second write API for the same table.<br>
+A writable join table also has its own Module.
 
-### Naming
-
-Module names should be singular nouns corresponding to one table.
-
-```text
-modules/
-├── account/
-│   ├── model.py
-│   └── module.py
-├── project/
-│   ├── model.py
-│   └── module.py
-└── account_role/
-    ├── model.py
-    └── module.py
-```
-
-Tableless concerns should not be placed under `modules/`. Views and materialized views are treated as read-only Query code, not as write-owning Modules.
-
-### About Repository
-
-Repository is not required by HUMQ. Module may use an ORM directly.
-
-Only extract `repository.py` as an internal helper inside Module when persistence code for the same table grows too large or when separating a non-ORM access implementation. Even then, Repository is not a public layer and should not be called directly from Usecase. Extracting Repository does not change the rule that Module operates on one table.
+Repository is not a HUMQ layer and is not required.<br>
+Use it only as an internal Module implementation when persistence code must be separated.<br>
+Usecase does not call Repository directly, and extracting one does not change the one-table boundary.
 
 ## Query
 
-Query is a read-only observation rule for cross-table reads. It handles joins, aggregations, reports, and cross-table list reads.
-
-Single-table reads belong in Module even when the search or aggregation is complex. Query exists for reads whose meaning comes from observing multiple tables or from a report/search context that spans tables.
-
-Query does not own transaction boundaries. It does not call `commit` or `rollback`; whether the underlying ORM or database connection uses a transaction internally is a separate implementation detail.
+Query is responsible for read-only operations that span multiple tables.<br>
+Placement depends on the number of tables read, not on the complexity of the read.<br>
+A read over one table belongs in Module; a read spanning multiple tables belongs in Query.
 
 ### Belongs Here
 
-- JOIN
-- Aggregations
-- Report retrieval
-- Reads for search screens
-- Reads that span multiple Modules
+- Joins and aggregations across multiple tables
+- Cross-table reads for lists, searches, and reports
+- Conversion into read models shaped for a screen or business context
 
 ### Does Not Belong Here
 
-- Writes
-- Transaction management
-- Changes to business state
-- CRUD that replaces Module
+- Writes or changes to business state
+- Transaction management through `commit` or `rollback`
+- Business flows or state transitions
+- Single-table CRUD, searches, or aggregations
 
-### Naming
+Even when the underlying ORM or database connection uses a transaction,<br>
+Query does not own the application-level transaction boundary.
 
-Query should be named by what it observes or by business context, not by entity name.
+## External Clients
 
-| Observation target | Filename |
-| --- | --- |
-| Account order history | `account_orders.py` |
-| Project progress | `project_progress.py` |
-| Sales summary | `sales_report.py` |
-| Overall user activity | `activity_overview.py` |
+An external client is an adapter that hides communication with an external system.<br>
+Usecase calls it, keeping communication mechanics and external data formats out of Usecase.
 
-Query describes what it observes, not which table it comes from.
+### Belongs Here
+
+- Communication through HTTP, an SDK, or a message broker
+- Building authentication information and requests
+- Parsing responses and converting them into application data
+- Converting timeouts and communication errors
+
+### Does Not Belong Here
+
+- Business flows or business conditions
+- Calls to Module or Query
+- Database operations or transaction management
+- Business policy for handling an external-operation failure
+
+Usecase decides whether to perform an external operation and whether a failure is retried or compensated.
+
+## Naming
+
+- **Handler**: Place HTTP files directly under `handlers/` and name them after resources. Event and CLI files may be grouped into input-specific subdirectories when needed.
+- **Usecase**: Name directories after primary resources or business contexts, and files with verbs or verb phrases.
+- **Module**: Use a singular noun representing the corresponding table.
+- **Query**: Name it after what it observes or its business context, not after a table.
+- **External client**: Name it after the external service or communication capability it provides.
+
+```text
+handlers/accounts.py
+handlers/events/order_created.py
+handlers/cli/rebuild_index.py
+usecases/accounts/signup.py
+usecases/projects/archive.py
+modules/account/module.py
+modules/account_role/module.py
+queries/account_orders.py
+queries/sales_report.py
+clients/payment_gateway.py
+clients/shipping_api.py
+```
+
+Avoid names such as `common.py` or `shared.py`; name each file after the responsibility it represents.
 
 ---
 
