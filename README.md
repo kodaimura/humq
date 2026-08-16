@@ -83,7 +83,8 @@ By limiting where chaos is absorbed, it keeps the remaining responsibility bound
 ## Target Applications
 
 Its primary target is applications that use a relational database as their main persistence model and handle multi-table state changes and cross-table reads.<br>
-[Adoption and Tradeoffs](docs/05-comparison.md#adoption-and-tradeoffs) explains where HUMQ fits, what tradeoffs it accepts, and when another design may be more appropriate.
+[Adoption and Tradeoffs](docs/05-comparison.md#adoption-and-tradeoffs) explains HUMQ's benefits and drawbacks,<br>
+where it fits, and when another design may be more appropriate.
 
 ## Documentation
 
@@ -91,7 +92,7 @@ Its primary target is applications that use a relational database as their main 
 - [Layer rules](docs/02-layer-rules.md)
 - [Design principles](docs/03-design-principles.md)
 - [Consistency and transactions](docs/04-consistency-and-transactions.md)
-- [Architecture comparison](docs/05-comparison.md)
+- [Architecture and design pattern comparison](docs/05-comparison.md)
 - [Adoption and tradeoffs](docs/05-comparison.md#adoption-and-tradeoffs)
 - [FastAPI example](docs/06-fastapi-example.md)
 

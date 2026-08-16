@@ -1,152 +1,171 @@
-# Comparison with Existing Architectures
+# Comparison with Existing Architectures and Design Patterns
 
-HUMQ does not reject MVC, layered architecture, clean architecture, or DDD. Each of them can make business flows explicit in a place equivalent to Usecase.
+The difference between HUMQ and existing designs is not a matter of superiority.<br>
+It is a difference in what each design protects, which decisions remain human judgments,<br>
+and where complexity is absorbed.
 
-The difference is that HUMQ provides mechanical defaults for where complexity belongs, how lower-level boundaries are chosen, and how much indirection is acceptable along an important flow.
+MVC, layered architecture, Clean Architecture, DDD, Transaction Script, Table Module, and CQRS<br>
+are not concepts at the same level.<br>
+Some can be used together, while other combinations have conflicting design priorities.<br>
+This document compares their typical defaults with the tradeoffs HUMQ chooses.
 
-## Assumptions Behind the Comparison
+## Comparison Axes
 
-An architecture name alone does not determine an implementation. Clean architecture does not necessarily produce a `Usecase -> Service -> Domain Service -> Repository` chain, and DDD does not necessarily hide a business flow inside an Aggregate.
+The comparison focuses on four questions:
 
-HUMQ addresses cases where operating another design has led to a structure like this:
+- What does the architecture protect?
+- Where do business flow and complexity belong?
+- How much of the responsibility boundary remains a human design decision?
+- How strongly is the design coupled to relational table structure?
 
-```text
-Usecase
-   ↓
-Service
-   ↓
-Domain Service
-   ↓
-Repository
-   ↓
-Persistence
-```
+HUMQ prioritizes stable code placement across developers and traceable business flows.<br>
+It does not automatically guarantee business correctness or data consistency.<br>
+Instead, it fixes where those concerns must be implemented and verified.
 
-The structure itself is not wrong. The problem arises when business-significant steps, branches, multi-record changes, external I/O, and transaction boundaries are distributed across these layers, forcing a reader to follow many places to understand the whole operation.
+## MVC + Service / Layered Architecture
 
-HUMQ does not aim to reduce layers for their own sake. It reduces unnecessary indirection when tracing a process.
+MVC + Service and layered architecture separate input/output, business processing, and data access.<br>
+They are widely understood and flexible enough to adjust layer granularity<br>
+to the scale and characteristics of a system.
 
-## Where Complexity Lives
+However, the team chooses Service granularity, Model behavior, Repository responsibilities,<br>
+and transaction ownership.<br>
+Several reasonable answers may exist for whether the same behavior belongs in Controller, Model, or Service.
 
-```text
-HUMQ
+HUMQ removes the generic Service role and fixes input/output in Handler, business flow in Usecase,<br>
+one-table operations in Module, and cross-table reads in Query.<br>
+It gives up some flexibility to keep placement stable across developers.
 
-Complex business flow
-          ↓
-       Usecase
-   ┌──────┼────────┐
-Module  Query  External Client
-  ↓       ↓          ↓
-1 table  Cross-table Side Effect
-```
+## Clean Architecture
 
-Lower-level parts remain narrow and predictable. Usecase expresses when, in what order, and under which conditions they are used.
+Clean Architecture controls dependency direction and keeps business rules independent<br>
+of external details such as frameworks and databases.<br>
+Its strength is protecting important policy while making technical mechanisms replaceable.
 
-## Relationship to Other Designs
+It still leaves decisions such as whether an individual rule belongs in Entity or Usecase<br>
+and how large a Usecase or Port should be.<br>
+Correct dependencies do not make code placement unique.
 
-### Layered Architecture
+HUMQ additionally fixes operation targets and code placement.<br>
+`Module = exactly one table` is an intentional coupling to the relational database,<br>
+which creates tension with Clean Architecture when persistence independence is the highest priority.<br>
+Some principles can still be combined, such as keeping external clients outside the application boundary.
 
-In layered architecture, the team decides the granularity and responsibilities of Controller, Service, and Repository. That freedom is useful, but Service may come to hold business flow, shared helpers, and data-access coordination at once, while Repository may start making business decisions.
+## Aggregate-Centered DDD
 
-HUMQ removes Service as a generic placement category. It fixes business flow in Usecase, one-table operations in Module, and cross-table reads in Query.
+Aggregate-centered DDD concentrates business concepts, invariants, and state transitions<br>
+in a Domain Model, making invalid states harder to create.<br>
+Its strength is allowing the model itself to protect complex consistency rules.
 
-### Clean Architecture
+Aggregate, Entity, Value Object, and Domain Service boundaries are determined<br>
+through continuing domain modeling.<br>
+Cross-Aggregate flows, cross-table screens, and temporary requirements<br>
+still require shared team judgment about placement.
 
-Clean architecture emphasizes dependency direction and independence of business rules from external details. HUMQ prioritizes traceable table-sized operation targets and business flows over persistence independence.
+HUMQ uses relational tables rather than Domain concepts as Module boundaries.<br>
+Cross-table consistency remains explicit in Usecase, making business flow easier to trace.<br>
+However, if a Usecase fails to call a required Module,<br>
+a consistency rule may be omitted.<br>
+HUMQ is not simplified DDD; it prioritizes predictable placement over protection through modeling.
 
-The two can be combined in part, but `Module = exactly one table` is an intentional coupling to database structure and therefore sits in tension with designs that make persistence independence the highest priority.
+## Transaction Script
 
-### DDD
+Transaction Script expresses one business operation as one procedure.<br>
+Its top-to-bottom business flow makes it the pattern closest to HUMQ's Usecase.
 
-DDD expresses business concepts and invariants through a Domain Model and Aggregate boundaries. HUMQ does not use Domain concept boundaries as Module boundaries. It fixes Module at one table and expresses business wholes and consistency spanning tables in Usecase.
+Transaction Script alone does not standardize data-access boundaries, where cross-table reads belong,<br>
+or how transaction boundaries are expressed.<br>
+If each Script accesses the database directly or begins choosing different Gateways or Repositories,<br>
+lower-level responsibilities and consistency handling can diverge.
 
-HUMQ is not a simplified Aggregate. It makes a different tradeoff against boundary-design cost and the reduced visibility of cross-boundary operations.
+HUMQ adds mechanical boundaries to Transaction Script: `1 Usecase = 1 Primary Flow`,<br>
+`Module = exactly one table`, `Query = read only`, and `transaction = Usecase`.<br>
+It keeps the procedural nature of Usecase visible while making lower-level parts simple and predictable.
 
-## HUMQ Mapping
+## Table Module / Table Data Gateway
 
-| Common layer or concept | HUMQ treatment |
-| --- | --- |
-| Controller | Handler, limited to input/output |
-| Application Service / Interactor | A primary business flow generally maps to Usecase |
-| Generic Service | No direct mapping; flow belongs in Usecase and local operations in Module |
-| Domain / Aggregate | No direct mapping; reusable pure decisions may be extracted as Policies |
-| Repository | Not required; an internal implementation detail of Module when needed |
-| Read Model / Report | Read-only Query |
-| Mailer / Payment Gateway / API Client | An external client called visibly from Usecase, not a Module |
+Table Module organizes business logic for one table or view in a single component,<br>
+while Table Data Gateway centralizes data access for one table.<br>
+Both resemble HUMQ's Module in treating a relational table as an explicit boundary.
 
-## Comparison Table
+Neither pattern by itself determines where multi-table business flow, cross-table reads, external I/O, and transactions are composed.
 
-| Viewpoint | Common layered structure | Clean architecture | DDD | HUMQ |
-| --- | --- | --- | --- | --- |
-| Business flow | Depends on Service design | May live in Usecase / Interactor | Expressed in application or Domain code | Explicit as one Usecase primary flow |
-| Lower-level boundary | Chosen by the team | Chosen through dependency rules and abstractions | Chosen through Domain / Aggregate design | Mechanically fixed at exactly one table |
-| Cross-table reads | Often placed in Repository or Service | Requires a Gateway, Read Model, or similar design | Requires Repository, Read Model, or similar design | Fixed in read-only Query code |
-| Consistency | Often coordinated by Service | Depends on Usecase and Entity design | Protected inside Aggregates and coordinated by application code | Cross-table consistency is explicit in Usecase |
-| Persistence coupling | Depends on implementation | Generally pushed to external details | May be isolated from Domain | Module intentionally couples to table structure |
-| Indirection | Depends on layers and Service granularity | Ports and Adapters may add it | Model design may add it | Minimized along important flows |
-| Main design cost | Service / Repository granularity | Boundaries, Ports, and dependency direction | Domain Model and Aggregates | Usecase readability and explicit consistency |
+A HUMQ Module is limited to operations on exactly one table<br>
+and may not operate on another table, own a business flow, or manage transactions.<br>
+Beyond table-oriented parts, HUMQ requires their composition to remain in Usecase<br>
+and separates cross-table reads into Query.
 
-This table compares defaults and tradeoffs, not superiority. Any design can become explicit or opaque depending on its implementation and operation.
+## CQRS
+
+CQRS separates the model used to update information from the model used to read it.<br>
+The two models may share a data store or use different stores and projections.
+
+HUMQ resembles CQRS in separating cross-table reads into Query.<br>
+However, one-table reads remain in Module,<br>
+and HUMQ does not require independent Command and Read Models for every operation.<br>
+Separate data stores, asynchronous projection updates, and eventual consistency are not HUMQ prerequisites.
+
+CQRS separates reads and writes but does not determine<br>
+where business flow and data access belong on the Command side.<br>
+HUMQ adds fixed placement rules for Handler, Usecase, Module, and Query.
 
 ## Adoption and Tradeoffs
 
-HUMQ primarily targets applications that use a relational database as their main persistence model and handle multi-table state changes and cross-table reads.
+HUMQ primarily targets applications that use a relational database as their main persistence model<br>
+and handle multi-table state changes and cross-table reads.
 
-### What HUMQ Gains
+### Benefits of HUMQ
 
-- Predictable code placement that remains stable as people change
-- Traceable business flows and transaction boundaries
-- Modules confined to one table with explicit operation targets
-- Queries that separate cross-table reads from writes
+- Fewer team decisions and agreements about where code belongs.
+- Easier tracing of business flows, state transitions, and transaction boundaries from Usecase during a change.
+- More predictable impact and data scope for one-table operations.
+- Prevention of complex lists and reports from becoming mixed into write processing.
 
-### What HUMQ Accepts
+### Drawbacks of HUMQ
 
-- Usecase grows when the business grows complex.
-- Query grows when screens, searches, and reports grow complex.
-- Module is intentionally coupled to table structure.
-- Cross-table consistency is kept explicit in Usecase and tests rather than enclosed in Domain code.
+- Usecase tends to grow because it concentrates business flow and consistency decisions.
+- Because Module is coupled to table structure, schema changes affect boundaries and naming.
+- Cross-table consistency depends on Usecase implementation, so an omitted rule can produce inconsistent data.
 
-HUMQ does not assume complexity can be eliminated.<br>
-It chooses to absorb complexity where it remains traceable instead of distributing it across the structure.
+### Where HUMQ Provides the Most Value
 
-### Where HUMQ Works Well
+- Business state is managed in stable relational tables, and each state transition can be expressed as a Usecase.
+- Multi-table operations keep accumulating branches, special cases, and temporary measures.
+- Cross-table lists, searches, reports, and administration screens are common.
+- Multiple people maintain the system over time and want fewer decisions about code placement.
 
-- Business flows, exceptions, and temporary measures are numerous.
-- Multi-table write procedures need to remain explicit.
-- Cross-table lists, searches, and reports are common.
-- The team wants fewer recurring decisions about code placement.
-- Long-term operation benefits from following fewer files during a change.
-- Relational tables are stable, primary persistence boundaries.
+Typical examples include order processing, inventory, contracts, billing, and approval systems<br>
+whose relational business flows change continuously.
 
-### Where Another Design May Fit Better
+### Where HUMQ Adds Little Value
 
-HUMQ does not itself provide a persistence-independent Domain Model, Event Sourcing state management,<br>
-or a runtime for long-running distributed workflows.
+- Most operations are simple CRUD against one table.
+- Multi-table business flows and reads are rare.
+- A small or short-lived project has no recurring problem with code placement.
 
-- Tables are not the primary persistence boundary, as in Event Sourcing.
-- Complex invariants need to be strongly enclosed in a rich Domain Model or Aggregate.
-- Strict Domain independence from persistence is the highest priority.
-- Long-running workflows across external systems dominate and a Saga or workflow engine is itself the primary abstraction.
+In these cases, HUMQ adds little predictability,<br>
+and a simpler MVC or layered architecture may be sufficient.
 
-Using payments or external services does not by itself put a system outside HUMQ's scope.<br>
-Ordinary integrations can complement HUMQ with Outbox, idempotency, Sagas, or compensating actions.
+### Where Another Design Should Lead
+
+- One domain state spans many tables that must be updated as a single unit.
+- A missed update can directly corrupt financial, inventory, or contract state, so consistency cannot depend only on each Usecase implementation.
+- The same business logic must be reused across systems with different database schemas or persistence mechanisms.
+- Processing spans multiple external systems over long periods, with retry and compensation state as central concerns.
 
 ### What HUMQ Requires
 
 Mechanical boundaries do not automatically guarantee business correctness. HUMQ requires implementers to:
 
-- Make consistency, state transitions, and external I/O explicit in Usecase.
-- Preserve traceability as one business intent instead of optimizing for short files.
-- Avoid hiding business flow through shared helper extraction.
+- Keep each Usecase to one business purpose, such as “confirm an order,” that can be explained from top to bottom.
+- Make consistency, state transitions, external I/O, and transaction boundaries explicit in Usecase.
 - Keep Module closed around exactly one table without hidden writes to another table.
 - Keep Query read-only.
-- Keep Handler thin.
+- Limit Handler to input and output.
+- Verify the consistency rules owned by Usecase through tests.
 
-HUMQ does not claim to be simpler than every alternative.
-
-> Keep lower-level parts simple and place important complexity where it remains visible from Usecase.
-
-HUMQ does not eliminate complexity. It puts complexity where it can be traced.
+HUMQ does not make the business simple.<br>
+It is a choice to keep real-world complexity where the team can continue to trace it.
 
 ---
 

@@ -202,4 +202,4 @@ Queryは読み取り専用です。複数テーブルを横断して読んで構
 
 ---
 
-前へ: [既存アーキテクチャとの比較](05-comparison.ja.md) | 次へ: [README](../README.ja.md)
+前へ: [既存アーキテクチャ・設計パターンとの比較](05-comparison.ja.md) | 次へ: [README](../README.ja.md)

@@ -202,4 +202,4 @@ When unsure during implementation, use these criteria:
 
 ---
 
-Previous: [Comparison with Existing Architectures](05-comparison.md) | Next: [README](../README.md)
+Previous: [Architecture and Design Pattern Comparison](05-comparison.md) | Next: [README](../README.md)

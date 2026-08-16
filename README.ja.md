@@ -83,7 +83,8 @@ HUMQは、外部との入出力をHandler、業務フローをUsecase、<br>
 ## 適用対象
 
 主な対象は、RDBを主要な永続化基盤とし、複数テーブルの状態変更と横断的な読み取りを扱うアプリケーションです。<br>
-向いている場面、引き受けるトレードオフ、別の設計が適する場面は、[適用判断とトレードオフ](docs/05-comparison.ja.md#適用判断とトレードオフ)で説明します。
+HUMQのメリットとデメリット、向いている場面、別の設計が適する場面は、<br>
+[適用判断とトレードオフ](docs/05-comparison.ja.md#適用判断とトレードオフ)で説明します。
 
 ## ドキュメント
 
@@ -91,7 +92,7 @@ HUMQは、外部との入出力をHandler、業務フローをUsecase、<br>
 - [層と責務のルール](docs/02-layer-rules.ja.md)
 - [設計原則](docs/03-design-principles.ja.md)
 - [整合性とトランザクション](docs/04-consistency-and-transactions.ja.md)
-- [既存アーキテクチャとの比較](docs/05-comparison.ja.md)
+- [既存アーキテクチャ・設計パターンとの比較](docs/05-comparison.ja.md)
 - [適用判断とトレードオフ](docs/05-comparison.ja.md#適用判断とトレードオフ)
 - [FastAPI構成例](docs/06-fastapi-example.ja.md)
 

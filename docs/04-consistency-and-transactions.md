@@ -139,4 +139,4 @@ This does not mean the underlying ORM or database connection never uses a transa
 
 ---
 
-Previous: [Design Principles](03-design-principles.md) | Next: [Comparison with Existing Architectures](05-comparison.md)
+Previous: [Design Principles](03-design-principles.md) | Next: [Architecture and Design Pattern Comparison](05-comparison.md)

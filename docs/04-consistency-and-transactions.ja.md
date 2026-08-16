@@ -139,4 +139,4 @@ Queryは読み取り専用です。Queryはトランザクション境界を決�
 
 ---
 
-前へ: [設計原則](03-design-principles.ja.md) | 次へ: [既存アーキテクチャとの比較](05-comparison.ja.md)
+前へ: [設計原則](03-design-principles.ja.md) | 次へ: [既存アーキテクチャ・設計パターンとの比較](05-comparison.ja.md)

@@ -78,7 +78,8 @@ HUMQ primarily targets applications that use a relational database as their main
 
 HUMQ intentionally couples Module boundaries to database table structure. This favors predictable operation targets and fewer boundary decisions over a rich Domain Model that is independent of persistence.
 
-[Adoption and Tradeoffs](05-comparison.md#adoption-and-tradeoffs) explains where HUMQ fits, what tradeoffs it accepts, and when another design may be more appropriate.
+[Adoption and Tradeoffs](05-comparison.md#adoption-and-tradeoffs) explains HUMQ's benefits and drawbacks,<br>
+where it fits, and when another design may be more appropriate.
 
 > Keep the parts simple. Keep the important chaos visible.
 
