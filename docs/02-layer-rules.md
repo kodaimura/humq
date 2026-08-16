@@ -74,11 +74,13 @@ Length alone does not make a Usecase bad. A 300-line Usecase whose business flow
 
 Length does not excuse disorder. Reconsider the Usecase boundary or expression when unrelated intents are mixed, deep nesting obscures order, or shared mutable state keeps growing.
 
-### Helpers and Shared Rules
+### Helpers, Shared Rules, and Shared Usecases
 
 Local calculations, data conversions, and formatting may be extracted into functions or helper files when doing so does not hide the business flow.
 
 When multiple Usecases need the same business decision, it may be shared as a pure Policy or decision function. That helper must not call Module, Query, or external clients and must not own transactions. The Policy invocation and the branch based on its result remain explicit in Usecase.
+
+When exactly the same business flow appears in multiple Usecases and can be explained as an independent business operation, it may be extracted into a shared Usecase. The call and any branch based on its result remain visible in the caller. When called by another Usecase, the shared Usecase participates in the caller's transaction and does not `commit` itself.
 
 A helper is not a new Service layer. Moving coordination of multiple Modules or external I/O into a helper would hide the business flow again.
 
