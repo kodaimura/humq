@@ -80,7 +80,10 @@ HUMQ fixes external input and output in Handler, business flows in Usecase,<br>
 one-table operations in Module, and cross-table reads in Query.<br>
 By limiting where chaos is absorbed, it keeps the remaining responsibility boundaries simple and predictable.
 
-Its primary target is applications that use a relational database as their main persistence model and handle multi-table state changes and cross-table reads.
+## Target Applications
+
+Its primary target is applications that use a relational database as their main persistence model and handle multi-table state changes and cross-table reads.<br>
+[Adoption and Tradeoffs](docs/05-comparison.md#adoption-and-tradeoffs) explains where HUMQ fits, what tradeoffs it accepts, and when another design may be more appropriate.
 
 ## Documentation
 
