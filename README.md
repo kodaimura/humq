@@ -4,9 +4,10 @@
 
 **Language:** [日本語](README.ja.md) | English
 
-For RDB-centered business applications, HUMQ assigns caller input and output to Handler,<br>
-business flows and transactions to Usecase, reads and writes of exactly one table to Module,<br>
-and cross-table reads to Query. Instead of splitting complexity into abstractions that hide it,<br>
+For applications centered on a relational database, HUMQ assigns<br>
+caller input and output to Handler, business flows and transactions to Usecase,<br>
+reads and writes of exactly one table to Module, and cross-table reads to Query.<br>
+Instead of splitting complexity into abstractions that hide it,<br>
 HUMQ keeps that complexity traceable from Usecase.
 
 > **Bugs can be fixed. Distortion eventually becomes unmanageable.**
@@ -16,10 +17,12 @@ HUMQ is an application architecture that does not tolerate structural distortion
 Here, "distortion" means that responsibility boundaries become ambiguous,<br>
 so the structure can no longer determine where an operation belongs.
 
-In real operations, branches and special cases emerge that do not fit the original design.<br>
-When such chaos has no defined place, the structure begins to distort.<br>
+In real operations, branches and special cases emerge that do not fit<br>
+the original design. When such chaos has no defined place,<br>
+the structure begins to distort.<br>
 HUMQ does not try to eliminate such chaos and impose order on everything.<br>
-It allows necessary chaos within order and uses responsibility boundaries to limit where it belongs and how far its effects may spread.
+It allows necessary chaos within order and uses responsibility boundaries<br>
+to limit where that chaos belongs and how far its effects may spread.
 
 > **The structure—not the individual developer—decides where code belongs.**
 
@@ -56,13 +59,16 @@ Distortion arises not only from wrong decisions, but when multiple reasonable de
 
 MVC + Service separates responsibilities but does not define one exclusive home for business logic.
 
-```text
-Controller  -> It is specific to this endpoint
-Model       -> It is a rule about this data
-Service     -> It is business logic
-```
+For example, even the single requirement "Cancel a confirmed order from the administration screen"<br>
+can lead to different decisions depending on which aspect the developer emphasizes.
 
-Because each placement can be reasonable, mixed decisions distribute business logic across multiple layers.
+- Put it in Controller because it exists only on the administration screen.
+- Put it in Model because it is a rule that changes order state.
+- Put it in Service because it also coordinates inventory restoration and notification.
+
+Each decision has a rationale.<br>
+MVC + Service alone does not determine which aspect should take priority as the placement criterion.<br>
+When developers choose different criteria, the same business flow becomes distributed across multiple layers.
 
 ### Aggregate-Centered DDD
 
