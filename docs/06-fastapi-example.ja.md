@@ -12,23 +12,24 @@ UsecaseやModuleをクラスにすることはHUMQの必須規則ではありま
 app/
 ├── main.py
 ├── router.py
-├── core/
-│   ├── database.py
-│   ├── config.py
-│   ├── crypto.py
-│   ├── error.py
-│   ├── mailer.py
-│   └── response.py
+├── database.py
+├── config.py
+├── crypto.py
+├── error.py
+├── mailer.py
+├── response.py
 ├── handlers/
 │   ├── accounts.py
+│   ├── auth.py
 │   └── dto/
 │       └── accounts.py
 ├── usecases/
 │   ├── accounts/
 │   │   ├── create.py
 │   │   └── list.py
-│   └── auth/
-│       └── forgot_password.py
+│   ├── auth/
+│   │   └── forgot_password.py
+│   └── issue_password_reset.py
 ├── modules/
 │   ├── account/
 │   │   ├── model.py
@@ -41,19 +42,25 @@ app/
 ```
 
 `handler`と`handlers`のような最上位ディレクトリの単数・複数は、HUMQの責務境界ではありません。<br>
-この例では[層と責務のルール](02-layer-rules.ja.md)の表記に合わせています。
+この例では[層と責務のルール](02-layer-rules.ja.md)の表記に合わせています。<br>
+DB接続、設定、メールなどの配置はHUMQの規定外であり、<br>
+`core/`、`infrastructure/`、`clients/`などへ分けることもできます。
+
+Handlerから呼ばれるUsecaseは、Handlerのリソース構成に対応させます。<br>
+`usecases/issue_password_reset.py`は、複数Usecaseで共有するOperationの例です。<br>
+Operationは新しい層ではないため、`operations/`ディレクトリは作りません。
 
 ## DBセッション
 
 FastAPIのDependencyでリクエストごとのSessionを作り、HandlerからUsecaseへ渡します。
 
 ```python
-# core/database.py
+# database.py
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-from app.core.config import config
+from app.config import config
 
 
 class Base(DeclarativeBase):
@@ -82,6 +89,9 @@ HandlerはSessionをUsecaseへ渡すだけで、検索、更新、`commit`は行
 この例では、Usecaseが`commit`後に返したORMモデルをHandlerがDTOへ変換するため、<br>
 `expire_on_commit=False`を指定します。これにより、DTOへの変換が、<br>
 Handlerからの暗黙的な再検索になることを防ぎます。
+
+SessionやORMモデルをHandler、Usecase、Moduleの間で受け渡すことは許容されます。<br>
+HUMQは、永続化方式から独立したEntityへの変換を必須としません。
 
 ## Handler
 
@@ -117,8 +127,8 @@ class AccountResponse(BaseModel):
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
-from app.core.response import ApiResponse
+from app.database import get_db
+from app.response import ApiResponse
 from app.handlers.dto.accounts import (
     AccountResponse,
     PostAccountRequest,
@@ -155,9 +165,12 @@ def post_account(
 HandlerはリクエストDTOをUsecaseのInputへ変換し、Usecaseの結果をレスポンスDTOへ変換します。<br>
 業務上の重複確認、パスワードのハッシュ化、DBへの保存はHandlerに置きません。
 
+このInputとResponse DTOはFastAPIで型を明確にするための選択であり、<br>
+HUMQの必須要素ではありません。不要であれば辞書やORMモデルを直接受け渡せます。
+
 ## Usecase
 
-UsecaseのInputはフレームワークに依存しない型として定義します。<br>
+この例では、UsecaseのInputをフレームワークに依存しない型として定義します。<br>
 Usecaseは必要なModuleを組み合わせ、業務上の分岐とトランザクション境界を持ちます。
 
 ```python
@@ -166,8 +179,8 @@ Usecaseは必要なModuleを組み合わせ、業務上の分岐とトランザ�
 from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
-from app.core.crypto import hash_password
-from app.core.error import AppError, ErrorCode
+from app.crypto import hash_password
+from app.error import AppError, ErrorCode
 from app.modules.account.module import AccountModule
 
 
@@ -210,7 +223,7 @@ class CreateAccountUsecase:
 
 ## Module
 
-ModuleはSessionを受け取り、1テーブルに閉じたORM操作を提供します。
+ModuleはSessionを受け取り、正確に1テーブルの読み書きと標準操作を提供します。
 
 ```python
 # modules/account/module.py
@@ -259,10 +272,15 @@ AccountModuleは`account`テーブルだけを読み書きします。<br>
 別のModuleを呼ばず、`commit`やResponse DTOへの変換も行いません。<br>
 DB操作には、`Session.query()`ではなくSQLAlchemy 2.xの`select()`と`scalars()`を使います。
 
-## Queryで読み取りモデルを作る
+所有するテーブルへの書き込みに必要な場合だけ、例外として別テーブルを参照できます。<br>
+その場合も、別テーブルの状態は変更しません。
 
-1テーブルだけを読む一覧はModuleに置きます。<br>
-複数テーブルから画面や業務に必要な形を作る場合は、Queryを使います。
+## Queryで横断的な読み取りモデルを作る
+
+主キー取得、存在確認、標準一覧など、テーブルの標準操作はModuleに置きます。<br>
+複数テーブルから画面、検索、帳票などに必要な形を作る読み取りはQueryに置きます。<br>
+複雑な検索や特殊なSQLなど、Moduleの標準操作に収まらない読み取りに限り、<br>
+1テーブルだけを参照する場合でも例外としてQueryに置けます。
 
 次のQueryは、`account`と`password_reset_token`を横断し、<br>
 ORMモデルではなくアカウントのセキュリティ状況を表す読み取りモデルを返します。
@@ -340,7 +358,7 @@ Queryはデータの読み方、Usecaseはアプリケーションが提供す�
 
 ## 複数Moduleと外部処理
 
-scaf-fastのパスワードリセットでは、Usecaseが2つのModuleとMailerを次の順序で扱います。
+パスワードリセットでは、Usecaseが2つのModuleとMailerを次の順序で扱います。
 
 ```text
 ForgotPasswordUsecase
@@ -353,6 +371,25 @@ ForgotPasswordUsecase
 
 DB更新を`commit`した後でメールを送るため、メール送信が失敗してもDB更新は戻りません。<br>
 再送や配信保証が必要な場合は、Outboxなどを追加します。
+
+同じトークン発行処理を、利用者向けと管理者向けの複数Usecaseから再利用する場合は、<br>
+UsecaseからUsecaseを呼ばず、Operationとして`usecases/`直下へ置きます。
+
+```python
+# usecases/issue_password_reset.py
+
+class IssuePasswordResetOperation:
+    def __init__(self, db: Session):
+        self.token_module = PasswordResetTokenModule(db)
+
+    def execute(self, account_id: int):
+        self.token_module.invalidate_active_tokens(account_id)
+        return self.token_module.create(account_id)
+```
+
+Operationは呼び出し元UsecaseのSessionとトランザクションに参加し、<br>
+`begin`、`commit`、`rollback`を行いません。共通化のための新しい層ではなく、<br>
+再利用される内部の業務処理を表します。
 
 ## エラーとレスポンス
 

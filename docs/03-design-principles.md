@@ -25,9 +25,9 @@ so that the primary flow remains readable from top to bottom.<br>
 Local calculations may be extracted into helpers, but multi-Module operations and state changes must remain visible.
 
 This does not allow unrelated business operations, shared mutable state,<br>
-or one-table implementation details that belong in Module to accumulate in Usecase.<br>
+or persistence implementation details that belong in Module to accumulate in Usecase.<br>
 Split Usecase by business intent, not by line count.<br>
-Being 300 or 1,000 lines long, having many branches, or calling many Modules is not sufficient reason by itself.
+Being long, having many branches, or calling many Modules is not sufficient reason by itself.
 
 Consider a separate Usecase when the operation:
 
@@ -37,16 +37,20 @@ Consider a separate Usecase when the operation:
 - Forms an independent retry or compensation unit.
 - Is more naturally described as “and then, as a separate operation” in the original flow.
 
+Independent business operations, reused internal flows, pure calculations, and input-format conversion<br>
+may be separated when the primary flow remains traceable. Avoiding decomposition is not the goal;<br>
+keeping the primary flow visible is. HUMQ allows traceable local complexity,<br>
+not an unstructured giant function.
+
 ## Principle 3: Prefer Traceability to Reuse
 
 A shared business decision may be reused as a pure Policy or function.<br>
 Its invocation and the branch resulting from that decision remain visible in Usecase.
 
-When exactly the same business flow appears in multiple Usecases<br>
-and can be explained as an independent business operation, it may be extracted into a shared Usecase.<br>
-The call and any branch based on its result remain visible in the caller.<br>
-When called by another Usecase, it participates in the caller's transaction,<br>
-and the shared Usecase does not `commit` itself.
+Avoid calls from one Usecase to another. An internal operation that is reused by multiple Usecases<br>
+and has an independent business meaning may be extracted as an Operation.<br>
+Operation is not a new layer. It participates in the caller's transaction<br>
+and never calls `begin`, `commit`, or `rollback` itself.
 
 Do not extract code merely because some lines look similar<br>
 or hide multi-Module operations behind an ambiguously named shared operation.<br>
@@ -58,7 +62,7 @@ Decisions such as "these things are related," "this is used only by this screen,
 may all be reasonable, but their conclusions change with the person and situation.
 
 HUMQ fixes input and output for the caller in Handler, business flows in Usecase,<br>
-one-table operations in Module, and cross-table reads in Query.<br>
+reads and writes of exactly one table in Module, and cross-table reads in Query.<br>
 It prioritizes consistent placement across developers over making every individual boundary locally elegant.
 
 ## Principle 5: A Broken System Can Be Fixed. A Distorted Structure Cannot

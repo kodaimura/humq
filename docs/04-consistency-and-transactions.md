@@ -11,8 +11,9 @@ and database transaction boundaries are Usecase responsibilities.
 ## Responsibilities
 
 - **Usecase**: Owns cross-table consistency, operation order, failure conditions, and transaction boundaries.
-- **Module**: Provides operations on one table and does not call `commit` or `rollback`.
+- **Module**: Reads and writes exactly one table and does not call `commit` or `rollback`.
 - **Query**: Is read-only and does not own transaction boundaries.
+- **Operation**: Participates in the calling Usecase's transaction and does not finalize its boundary.
 - **Database**: Enforces database-expressible constraints and provides concurrency-control mechanisms.
 - **Test**: Verifies business branches, failures, and `rollback` behavior.
 

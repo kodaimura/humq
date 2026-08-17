@@ -12,23 +12,24 @@ This example follows scaf-fast by injecting the database Session and dependencie
 app/
 ├── main.py
 ├── router.py
-├── core/
-│   ├── database.py
-│   ├── config.py
-│   ├── crypto.py
-│   ├── error.py
-│   ├── mailer.py
-│   └── response.py
+├── database.py
+├── config.py
+├── crypto.py
+├── error.py
+├── mailer.py
+├── response.py
 ├── handlers/
 │   ├── accounts.py
+│   ├── auth.py
 │   └── dto/
 │       └── accounts.py
 ├── usecases/
 │   ├── accounts/
 │   │   ├── create.py
 │   │   └── list.py
-│   └── auth/
-│       └── forgot_password.py
+│   ├── auth/
+│   │   └── forgot_password.py
+│   └── issue_password_reset.py
 ├── modules/
 │   ├── account/
 │   │   ├── model.py
@@ -43,17 +44,24 @@ app/
 Whether top-level directories use singular or plural names, such as `handler` or `handlers`,<br>
 is not a HUMQ responsibility boundary. This example follows the notation used in [Layer Rules](02-layer-rules.md).
 
+Placement of database connections, configuration, email, and similar code is outside HUMQ's scope.<br>
+A project may instead group these under `core/`, `infrastructure/`, `clients/`, or another structure.
+
+Handler-called Usecases correspond to the Handler's resource structure.<br>
+`usecases/issue_password_reset.py` is an example of an Operation shared by multiple Usecases.<br>
+Because Operation is not a new layer, this structure has no `operations/` directory.
+
 ## Database Session
 
 A FastAPI dependency creates one Session per request and passes it from Handler to Usecase.
 
 ```python
-# core/database.py
+# database.py
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-from app.core.config import config
+from app.config import config
 
 
 class Base(DeclarativeBase):
@@ -82,6 +90,9 @@ Handler only passes Session to Usecase; it does not query, update, or `commit`.
 Because Handler converts an ORM model returned by Usecase after `commit` into a DTO,<br>
 this example sets `expire_on_commit=False`. This prevents DTO conversion<br>
 from triggering an implicit refresh query in Handler.
+
+Session and ORM models may be passed among Handler, Usecase, and Module.<br>
+HUMQ does not require conversion into persistence-independent Entities.
 
 ## Handler
 
@@ -117,8 +128,8 @@ class AccountResponse(BaseModel):
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
-from app.core.response import ApiResponse
+from app.database import get_db
+from app.response import ApiResponse
 from app.handlers.dto.accounts import (
     AccountResponse,
     PostAccountRequest,
@@ -155,9 +166,12 @@ def post_account(
 Handler converts a request DTO into Usecase Input and converts the Usecase result into a response DTO.<br>
 Business duplicate checks, password hashing, and persistence do not belong in Handler.
 
+The Input and response DTOs are choices that make types explicit in this FastAPI example,<br>
+not required HUMQ elements. A project may pass dictionaries or ORM models directly when appropriate.
+
 ## Usecase
 
-Usecase Input is defined with framework-independent types.<br>
+This example defines Usecase Input with framework-independent types.<br>
 Usecase combines the required Modules and owns business branches and transaction boundaries.
 
 ```python
@@ -166,8 +180,8 @@ Usecase combines the required Modules and owns business branches and transaction
 from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
-from app.core.crypto import hash_password
-from app.core.error import AppError, ErrorCode
+from app.crypto import hash_password
+from app.error import AppError, ErrorCode
 from app.modules.account.module import AccountModule
 
 
@@ -210,7 +224,7 @@ but it does not finalize the successful transaction.
 
 ## Module
 
-Module receives Session and provides ORM operations closed around one table.
+Module receives Session and provides reads, writes, and standard operations for exactly one table.
 
 ```python
 # modules/account/module.py
@@ -259,10 +273,15 @@ AccountModule reads and writes only the `account` table.<br>
 It neither calls another Module nor converts results into response DTOs or calls `commit`.<br>
 Database operations use SQLAlchemy 2.x `select()` and `scalars()` instead of `Session.query()`.
 
-## Build Read Models in Query
+Only when writing its owned table requires it may Module read another table as an exception.<br>
+Even then, it does not change the other table's state.
 
-A list that reads only one table belongs in Module.<br>
-Use Query when multiple tables are read to produce data shaped for a screen or business context.
+## Build Cross-Table Read Models in Query
+
+Standard table operations such as lookup by primary key, existence checks, and standard lists belong in Module.<br>
+Reads that shape data from multiple tables for a screen, search, report, or other purpose belong in Query.<br>
+Only as an exception, a complex search, specialized SQL statement, or other read that does not fit<br>
+Module's standard operations may belong in Query when it reads only one table.
 
 The following Query reads across `account` and `password_reset_token`<br>
 and returns a read model of account security status rather than an ORM model.
@@ -340,7 +359,7 @@ The thinness of this Usecase is not a problem.
 
 ## Multiple Modules and External Operations
 
-In scaf-fast's password-reset flow, Usecase handles two Modules and a mailer in this order:
+In a password-reset flow, Usecase handles two Modules and a mailer in this order:
 
 ```text
 ForgotPasswordUsecase
@@ -353,6 +372,25 @@ ForgotPasswordUsecase
 
 Because email is sent after the database `commit`, a delivery failure does not roll back the database change.<br>
 Add Outbox or another pattern when retries or delivery guarantees are required.
+
+When the same token-issuance flow is reused by both customer-facing and administrator-facing Usecases,<br>
+place it directly under `usecases/` as an Operation instead of calling one Usecase from another.
+
+```python
+# usecases/issue_password_reset.py
+
+class IssuePasswordResetOperation:
+    def __init__(self, db: Session):
+        self.token_module = PasswordResetTokenModule(db)
+
+    def execute(self, account_id: int):
+        self.token_module.invalidate_active_tokens(account_id)
+        return self.token_module.create(account_id)
+```
+
+Operation participates in the calling Usecase's Session and transaction<br>
+and never calls `begin`, `commit`, or `rollback`. It is not a new general-purpose layer;<br>
+it represents a reused internal business operation.
 
 ## Errors and Responses
 

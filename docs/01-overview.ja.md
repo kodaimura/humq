@@ -19,8 +19,8 @@ HUMQは、RDBを中心とするアプリケーションのコードを4つの責
 | --- | --- |
 | 呼び出し元との入出力 | Handler |
 | 業務フローと処理の組み立て | Usecase |
-| 1テーブルのDB操作 | Module |
-| 複数テーブルの読み取り | Query |
+| 正確に1テーブルの読み書き | Module |
+| 複数テーブルを横断する読み取り | Query |
 
 外部システムとの通信は外部クライアントに置き、Usecaseから呼び出します。<br>
 意味や関連性を毎回解釈するのではなく、操作対象と処理の種類によって置き場所を決めます。
@@ -31,8 +31,8 @@ HUMQは、RDBを中心とするアプリケーションのコードを4つの責
 flowchart TD
     input["呼び出し元からの入力"] --> handler["Handler"]
     handler --> usecase["Usecase"]
-    usecase --> module["Module<br>1テーブルの読み取り / 書き込み"]
-    usecase --> query["Query<br>複数テーブルの読み取り"]
+    usecase --> module["Module<br>正確に1テーブルの読み書き"]
+    usecase --> query["Query<br>複数テーブルを横断する読み取り"]
     usecase --> client["外部クライアント<br>外部システムとの通信"]
 ```
 
@@ -54,7 +54,7 @@ ConfirmOrderUsecase
 どのテーブルをどの順序で更新し、どこまでを同じトランザクションで扱うかは、<br>
 Usecaseから確認できます。各Moduleは対応する1テーブルだけを変更します。
 
-複数テーブルを使う一覧、検索、帳票は、UsecaseがQueryを呼び出します。
+複数テーブルを使う画面、検索、帳票などの読み取りは、UsecaseがQueryを呼び出します。
 
 ```text
 ListAccountOrdersUsecase
@@ -62,7 +62,6 @@ ListAccountOrdersUsecase
     accounts JOIN orders JOIN order_items
 ```
 
-Queryは画面や業務文脈に必要な形でデータを返しますが、状態は変更しません。
 読み取り専用のUsecaseがQueryを呼ぶだけの場合も、HandlerからQueryを直接呼びません。<br>
 Usecaseはアプリケーションが提供する操作、Queryはそのデータを読む方法を表します。
 
@@ -73,6 +72,8 @@ Usecaseはアプリケーションが提供する操作、Queryはそのデー�
 - 正規化されたテーブル構造が、複数のModule呼び出しとしてUsecaseに現れることを許容する。
 - 業務が複雑になればUsecaseも肥大化するが、主要なフローは上から下へ追える状態に保つ。
 - 複数テーブルの整合性を自動では保証せず、Usecase、DB制約、テストで明示的に守る。
+- 永続化方式から独立したDomain Entityや、DTOへの変換を必須としない。
+- DB接続、外部連携、監視など、アプリケーション全体のディレクトリ構成は規定しない。
 
 詳しい配置規則は[層と責務のルール](02-layer-rules.ja.md)、<br>
 判断に迷ったときの優先順位は[設計原則](03-design-principles.ja.md)、<br>

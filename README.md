@@ -4,6 +4,11 @@
 
 **Language:** [日本語](README.ja.md) | English
 
+For RDB-centered business applications, HUMQ assigns caller input and output to Handler,<br>
+business flows and transactions to Usecase, reads and writes of exactly one table to Module,<br>
+and cross-table reads to Query. Instead of splitting complexity into abstractions that hide it,<br>
+HUMQ keeps that complexity traceable from Usecase.
+
 > **Bugs can be fixed. Distortion eventually becomes unmanageable.**
 
 HUMQ is an application architecture that does not tolerate structural distortion.
@@ -41,7 +46,8 @@ The code may still work, but if its correct placement cannot be explained, the s
 
 ## Why Structures Become Distorted in Existing Designs
 
-MVC + Service, aggregate-centered DDD, and Clean Architecture are all widely used application design approaches.<br>
+MVC + Service, aggregate-centered DDD, and Clean Architecture<br>
+are all widely used application design approaches.<br>
 However, each leaves some responsibility boundaries to human design judgment.
 
 Distortion arises not only from wrong decisions, but when multiple reasonable decisions coexist.
@@ -76,13 +82,13 @@ so code placement remains stable as people change.
 
 ## HUMQ's Solution
 
-HUMQ fixes input and output for the caller in Handler, business flows in Usecase,<br>
-one-table operations in Module, and cross-table reads in Query.<br>
-By limiting where chaos is absorbed, it keeps the remaining responsibility boundaries simple and predictable.
+By fixing these responsibility boundaries, HUMQ limits where chaos is absorbed<br>
+and keeps the rest of the structure simple and predictable.
 
 ## Target Applications
 
-Its primary target is applications that use a relational database as their main persistence model and handle multi-table state changes and cross-table reads.<br>
+Its primary target is applications that use a relational database as their main persistence model<br>
+and handle multi-table state changes and cross-table reads.<br>
 [Adoption and Tradeoffs](docs/05-comparison.md#adoption-and-tradeoffs) explains HUMQ's benefits and drawbacks,<br>
 where it fits, and when another design may be more appropriate.
 

@@ -15,12 +15,12 @@ It is an adapter that hides communication with email providers, payment gateways
 
 ## Four Placement Rules
 
-| Operation | Responsibility |
+| Concern | Responsibility |
 | --- | --- |
 | Caller input and output | Handler |
 | Business flow composition | Usecase |
-| One-table database access | Module |
-| Cross-table reads | Query |
+| Reads and writes exactly one table | Module |
+| Reads spanning multiple tables | Query |
 
 Communication with external systems belongs in external clients called by Usecase.<br>
 Placement follows the operation target and type instead of a new interpretation of conceptual relatedness each time.
@@ -31,8 +31,8 @@ Placement follows the operation target and type instead of a new interpretation 
 flowchart TD
     input["Caller input"] --> handler["Handler"]
     handler --> usecase["Usecase"]
-    usecase --> module["Module<br>Single-table reads / writes"]
-    usecase --> query["Query<br>Cross-table reads"]
+    usecase --> module["Module<br>Reads and writes exactly one table"]
+    usecase --> query["Query<br>Reads spanning multiple tables"]
     usecase --> client["External client<br>External-system communication"]
 ```
 
@@ -54,7 +54,7 @@ ConfirmOrderUsecase
 Usecase shows which tables are updated, in what order,<br>
 and which operations share a transaction. Each Module changes only its corresponding table.
 
-For lists, searches, and reports using multiple tables, Usecase calls Query.
+For screens, searches, and reports that read multiple tables, Usecase calls Query.
 
 ```text
 ListAccountOrdersUsecase
@@ -62,7 +62,6 @@ ListAccountOrdersUsecase
     accounts JOIN orders JOIN order_items
 ```
 
-Query returns data shaped for the screen or business context without changing state.
 Even when a read-only Usecase only delegates to Query, Handler does not call Query directly.<br>
 Usecase represents the operation the application provides; Query represents how its data is read.
 
@@ -73,6 +72,8 @@ Usecase represents the operation the application provides; Query represents how 
 - A normalized table structure may appear in Usecase as multiple Module calls.
 - As the business becomes complex, Usecase may grow, but its primary flow remains readable from top to bottom.
 - Cross-table consistency is not guaranteed automatically; it is protected explicitly through Usecase, database constraints, and tests.
+- Persistence-independent Domain Entities and conversion into DTOs are not required.
+- The directory structure for database connections, external integrations, observability, and the rest of the application is not prescribed.
 
 See [Layer Rules](02-layer-rules.md) for detailed placement rules,<br>
 [Design Principles](03-design-principles.md) for priorities when judgment is required,<br>
