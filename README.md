@@ -88,8 +88,15 @@ so code placement remains stable as people change.
 
 ## HUMQ's Solution
 
-By fixing these responsibility boundaries, HUMQ limits where chaos is absorbed<br>
-and keeps the rest of the structure simple and predictable.
+HUMQ is a lightweight architecture for RDB-centered applications<br>
+that keeps code placement from depending on individual judgment.
+
+It fixes the responsibility boundaries of Handler, Usecase, Module, and Query,<br>
+so where code belongs and where a change should be traced remain stable as the business grows more complex.<br>
+It limits where chaos is absorbed and keeps the rest of the structure simple and predictable.
+
+It provides clearer placement rules than MVC + Service<br>
+and requires fewer design concepts than DDD centered on Aggregates and a rich Domain Model.
 
 ## Target Applications
 
@@ -107,6 +114,7 @@ where it fits, and when another design may be more appropriate.
 - [Architecture and design pattern comparison](docs/05-comparison.md)
 - [Adoption and tradeoffs](docs/05-comparison.md#adoption-and-tradeoffs)
 - [FastAPI example](docs/06-fastapi-example.md)
+- [Adoption limits and evolution](docs/07-adoption-limits-and-evolution.md)
 
 ## License
 

@@ -37,24 +37,19 @@ Consider a separate Usecase when the operation:
 - Forms an independent retry or compensation unit.
 - Is more naturally described as “and then, as a separate operation” in the original flow.
 
-Independent business operations, reused internal flows, pure calculations, and input-format conversion<br>
+Independent business operations, pure decisions or calculations, and input-format conversion<br>
 may be separated when the primary flow remains traceable. Avoiding decomposition is not the goal;<br>
 keeping the primary flow visible is. HUMQ allows traceable local complexity,<br>
 not an unstructured giant function.
 
 ## Principle 3: Prefer Traceability to Reuse
 
-A shared business decision may be reused as a pure Policy or function.<br>
-Its invocation and the branch resulting from that decision remain visible in Usecase.
+Processing shared by multiple Usecases may be extracted as Policy when it does not use the database,<br>
+or as Operation when it uses Module or Query.<br>
+In either case, the call and primary branch based on its result remain in Usecase.
 
-Avoid calls from one Usecase to another. An internal operation that is reused by multiple Usecases<br>
-and has an independent business meaning may be extracted as an Operation.<br>
-Operation is not a new layer. It participates in the caller's transaction<br>
-and never calls `begin`, `commit`, or `rollback` itself.
-
-Do not extract code merely because some lines look similar<br>
-or hide multi-Module operations behind an ambiguously named shared operation.<br>
-HUMQ does not avoid reuse itself. It avoids reuse that makes the location of a business flow unclear.
+Two occurrences alone do not require sharing. HUMQ does not avoid reuse;<br>
+it avoids reuse that obscures where the business flow lives.
 
 ## Principle 4: Prefer Mechanical Boundaries to Judgment-Dependent Boundaries
 

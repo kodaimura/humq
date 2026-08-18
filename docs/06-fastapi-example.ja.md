@@ -28,10 +28,23 @@ app/
 │   │   ├── create.py
 │   │   └── list.py
 │   ├── auth/
-│   │   └── forgot_password.py
-│   └── issue_password_reset.py
+│   │   ├── forgot_password.py
+│   │   └── _policies.py
+│   ├── organizations/
+│   │   └── _operations.py
+│   ├── orders/
+│   │   └── confirm.py
 ├── modules/
 │   ├── account/
+│   │   ├── model.py
+│   │   └── module.py
+│   ├── organization/
+│   │   ├── model.py
+│   │   └── module.py
+│   ├── organization_member/
+│   │   ├── model.py
+│   │   └── module.py
+│   ├── order/
 │   │   ├── model.py
 │   │   └── module.py
 │   └── password_reset_token/
@@ -47,8 +60,6 @@ DB接続、設定、メールなどの配置はHUMQの規定外であり、<br>
 `core/`、`infrastructure/`、`clients/`などへ分けることもできます。
 
 Handlerから呼ばれるUsecaseは、Handlerのリソース構成に対応させます。<br>
-`usecases/issue_password_reset.py`は、複数Usecaseで共有するOperationの例です。<br>
-Operationは新しい層ではないため、`operations/`ディレクトリは作りません。
 
 ## DBセッション
 
@@ -221,6 +232,116 @@ class CreateAccountUsecase:
 `commit`するのはUsecaseです。Moduleは`flush`によってSQLを実行できますが、<br>
 トランザクションの成功を確定しません。
 
+## Policy
+
+Policyは、DBから必要な値を取得する処理ではなく、<br>
+Usecaseから渡された値だけで業務上の判断または計算を行います。
+
+```python
+# usecases/auth/_policies.py
+
+MAX_PASSWORD_RESET_REQUESTS_PER_DAY = 3
+
+
+def can_issue_password_reset(
+    *,
+    account_is_active: bool,
+    requests_today: int,
+) -> bool:
+    return (
+        account_is_active
+        and requests_today < MAX_PASSWORD_RESET_REQUESTS_PER_DAY
+    )
+```
+
+UsecaseがModuleから値を取得し、Policyの結果に基づいて状態を変更します。
+
+```python
+# usecases/auth/forgot_password.py
+
+class ForgotPasswordUsecase:
+    def execute(self, email: str):
+        account = self.accounts.get_by_email(email)
+        requests_today = self.tokens.count_created_today(account.id)
+
+        if not can_issue_password_reset(
+            account_is_active=account.is_active,
+            requests_today=requests_today,
+        ):
+            raise PasswordResetNotAllowed()
+
+        self.tokens.invalidate_active_tokens(account.id)
+        token = self.tokens.create(account.id)
+        self.db.commit()
+        self.mailer.send_password_reset(account.email, token.value)
+```
+
+DBアクセス、Module呼び出し、`commit`、メール送信はPolicyへ移しません。<br>
+Policyの呼び出しと、その結果による分岐はUsecaseから確認できます。
+
+## Operation
+
+複数Usecaseで共有するDB依存の業務処理は、所有ドメインの`_operations.py`へ置きます。<br>
+次のOperationは、組織とメンバーをModuleから取得し、共通の認可条件を検証します。
+
+```python
+# usecases/organizations/_operations.py
+
+class RequireOrganizationRoleOperation:
+    def __init__(self, db: Session):
+        self.organizations = OrganizationModule(db)
+        self.members = OrganizationMemberModule(db)
+
+    def run(
+        self,
+        *,
+        organization_id: int,
+        account_id: int,
+        allowed_roles: set[str],
+    ) -> None:
+        organization = self.organizations.get_by_id(organization_id)
+        if not organization:
+            raise AppError(code=ErrorCode.ORGANIZATION_NOT_FOUND)
+
+        member = self.members.get(
+            organization_id=organization_id,
+            account_id=account_id,
+        )
+        if not member or member.role not in allowed_roles:
+            raise AppError(code=ErrorCode.ACCESS_DENIED)
+```
+
+UsecaseはOperationを主要なフローの中から明示的に呼び、トランザクションを確定します。
+
+```python
+# usecases/orders/confirm.py
+
+from app.usecases.organizations._operations import (
+    RequireOrganizationRoleOperation,
+)
+
+
+class ConfirmOrderUsecase:
+    def __init__(self, db: Session):
+        self.db = db
+        self.orders = OrderModule(db)
+        self.require_role = RequireOrganizationRoleOperation(db)
+
+    def execute(self, input):
+        order = self.orders.get_for_update(input.order_id)
+        self.require_role.run(
+            organization_id=order.seller_organization_id,
+            account_id=input.account_id,
+            allowed_roles={"ADMIN", "SALES"},
+        )
+        self.orders.confirm(order)
+        self.db.commit()
+        return order
+```
+
+Operationは呼び出し元と同じSessionを使い、書き込みは各Moduleを通します。<br>
+トランザクションの確定はUsecaseに残します。
+
 ## Module
 
 ModuleはSessionを受け取り、正確に1テーブルの読み書きと標準操作を提供します。
@@ -372,25 +493,6 @@ ForgotPasswordUsecase
 DB更新を`commit`した後でメールを送るため、メール送信が失敗してもDB更新は戻りません。<br>
 再送や配信保証が必要な場合は、Outboxなどを追加します。
 
-同じトークン発行処理を、利用者向けと管理者向けの複数Usecaseから再利用する場合は、<br>
-UsecaseからUsecaseを呼ばず、Operationとして`usecases/`直下へ置きます。
-
-```python
-# usecases/issue_password_reset.py
-
-class IssuePasswordResetOperation:
-    def __init__(self, db: Session):
-        self.token_module = PasswordResetTokenModule(db)
-
-    def execute(self, account_id: int):
-        self.token_module.invalidate_active_tokens(account_id)
-        return self.token_module.create(account_id)
-```
-
-Operationは呼び出し元UsecaseのSessionとトランザクションに参加し、<br>
-`begin`、`commit`、`rollback`を行いません。共通化のための新しい層ではなく、<br>
-再利用される内部の業務処理を表します。
-
 ## エラーとレスポンス
 
 UsecaseはHTTPステータスコードではなく、アプリケーションのErrorCodeを使って失敗を表します。<br>
@@ -417,4 +519,4 @@ async def handle_app_error(request: Request, exc: AppError):
 
 ---
 
-前へ: [既存アーキテクチャ・設計パターンとの比較](05-comparison.ja.md) | 次へ: [README](../README.ja.md)
+前へ: [既存アーキテクチャ・設計パターンとの比較](05-comparison.ja.md) | 次へ: [適用限界と発展](07-adoption-limits-and-evolution.ja.md)

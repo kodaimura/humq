@@ -11,9 +11,9 @@ and database transaction boundaries are Usecase responsibilities.
 ## Responsibilities
 
 - **Usecase**: Owns cross-table consistency, operation order, failure conditions, and transaction boundaries.
+- **Operation**: Uses Module or Query in the caller's Session to perform shared internal processing.
 - **Module**: Reads and writes exactly one table and does not call `commit` or `rollback`.
 - **Query**: Is read-only and does not own transaction boundaries.
-- **Operation**: Participates in the calling Usecase's transaction and does not finalize its boundary.
 - **Database**: Enforces database-expressible constraints and provides concurrency-control mechanisms.
 - **Test**: Verifies business branches, failures, and `rollback` behavior.
 
@@ -77,10 +77,23 @@ The database may `rollback` after the external operation succeeds, or the extern
 With Outbox, Usecase does not guarantee completion of the external operation.<br>
 It guarantees that the database state change and the delivery request are recorded together.
 
+## When the Same Invariant Repeats
+
+When the same multi-table update runs from multiple Usecases<br>
+with identical validation, order, locking, and error handling, it may be shared as an Operation.
+
+A long Usecase, many Module calls, or similar-looking code does not require extraction.<br>
+Ask whether the processing has the same business meaning and reason to change,<br>
+and whether keeping it duplicated creates a real risk of missed changes.
+
+Operation participates in the same Session as the calling Usecase and delegates every write to a Module.<br>
+It never calls `begin`, `commit`, or `rollback`; the calling Usecase still owns the transaction boundary.
+
 ## HUMQ's Tradeoff
 
 HUMQ does not automatically prevent a missing Module call or consistency rule.<br>
-An omission in Usecase can still produce inconsistent state.
+An omission in Usecase can still produce inconsistent state.<br>
+Sharing through Operation does not structurally prevent a caller from omitting it.
 
 Database constraints and Usecase tests are therefore used together.<br>
 HUMQ provides no automatic guarantee of consistency.<br>

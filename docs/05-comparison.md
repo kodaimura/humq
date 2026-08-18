@@ -21,6 +21,30 @@ HUMQ prioritizes stable code placement across developers and traceable business 
 It does not automatically guarantee business correctness or data consistency.<br>
 Instead, it fixes where those concerns must be implemented and verified.
 
+## Positioning HUMQ
+
+HUMQ is a lightweight, transaction-script-oriented application architecture<br>
+for RDB-centric business systems where Service responsibilities in MVC + Service become ambiguous,<br>
+but a rich DDD Domain Model is not required.
+
+```text
+MVC
+  ↓
+MVC + Service
+  ↓
+HUMQ
+  ↓  When stronger shared invariants and a Domain Model become necessary
+Domain-centered design such as DDD
+```
+
+This diagram is shorthand for increasing modeling concepts and structural protection.<br>
+DDD is also a modeling methodology, not merely an architecture,<br>
+so HUMQ and DDD do not sit on one complete linear scale of superiority.
+
+HUMQ does not require Aggregate, Value Object, Domain Service, Repository,<br>
+or Bounded Context. It permits coupling to ORM models and relational tables<br>
+and prioritizes predictable placement and traceable business flows over domain modeling.
+
 ## MVC + Service / Layered Architecture
 
 MVC + Service and layered architecture separate input/output, business processing, and data access.<br>
@@ -33,6 +57,9 @@ Several reasonable answers may exist for whether the same behavior belongs in Co
 HUMQ removes the generic Service role and fixes caller input/output in Handler, business flow in Usecase,<br>
 reads and writes of exactly one table in Module, and cross-table reads in Query.<br>
 It gives up some flexibility to keep placement stable across developers.
+
+HUMQ's value is not inventing new concepts.<br>
+It selects the minimum needed from existing implementation patterns and reduces placement decisions.
 
 ## Clean Architecture
 
@@ -69,6 +96,8 @@ However, if a Usecase fails to call a required Module,<br>
 a consistency rule may be omitted.<br>
 HUMQ is not simplified DDD;<br>
 it is a different choice that prioritizes predictable placement over protection through modeling.
+When many Usecases share the same multi-table invariants,<br>
+DDD may be a better fit because it can protect those invariants inside a Domain Model.
 
 ## Transaction Script
 
@@ -120,6 +149,23 @@ HUMQ adds fixed placement rules for Handler, Usecase, Module, and Query.
 HUMQ primarily targets applications that use a relational database as their main persistence model<br>
 and handle multi-table state changes along with cross-table reads for screens, searches, and reports.
 
+### Scale and Complexity Axes
+
+HUMQ's applicability is not determined by table count or lines of code alone.
+
+| Scale or complexity axis | Fit with HUMQ |
+| --- | --- |
+| Many tables | Applicable |
+| Many APIs, Usecases, screens, or reports | Applicable |
+| Long individual flows with many branches and exceptions | Good fit because they remain traceable from Usecase |
+| Many complex cross-table reads | Good fit because they can be separated into Query |
+| Multiple Usecases share the same database-backed processing | May be shared in a limited Operation |
+| Operations hold primary flows or many shared invariants | Evaluate the adoption limit |
+| Interactions among complex Domain Models are central | Consider DDD or another domain-centered design |
+
+Handling many tables or a large codebase is a different capability<br>
+from safely reusing complex shared invariants.
+
 ### Benefits of HUMQ
 
 - Fewer team decisions and agreements about where code belongs.
@@ -144,6 +190,8 @@ over hiding the table structure behind abstract Domain boundaries.
 - Multi-table operations keep accumulating branches, special cases, and temporary measures.
 - Lists, searches, reports, and administration views frequently read across multiple tables.
 - Multiple people maintain the system over time and want fewer decisions about code placement.
+- Most business rules are tied to individual Usecases.
+- The system does not need the cost of a rich Domain Model or persistence abstraction.
 
 Typical examples include order processing, inventory, contracts, billing, and approval systems<br>
 whose relational business flows change continuously.
@@ -164,6 +212,13 @@ and a simpler MVC or layered architecture may be sufficient.
   so consistency cannot depend only on each Usecase implementation.
 - The same business logic must be reused across systems with different database schemas or persistence mechanisms.
 - Processing spans multiple external systems over long periods, with retry and compensation state as central concerns.
+
+### Adoption Limits and Evolution
+
+Sharing the same database-backed processing across multiple Usecases is not itself a HUMQ adoption limit.<br>
+Reconsider the affected domain when shared processing grows beyond a supporting role for Usecase.<br>
+See [Adoption Limits and Evolution](07-adoption-limits-and-evolution.md)<br>
+for detailed criteria and migration options.
 
 ### What HUMQ Requires
 

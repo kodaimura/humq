@@ -28,10 +28,23 @@ app/
 │   │   ├── create.py
 │   │   └── list.py
 │   ├── auth/
-│   │   └── forgot_password.py
-│   └── issue_password_reset.py
+│   │   ├── forgot_password.py
+│   │   └── _policies.py
+│   ├── organizations/
+│   │   └── _operations.py
+│   ├── orders/
+│   │   └── confirm.py
 ├── modules/
 │   ├── account/
+│   │   ├── model.py
+│   │   └── module.py
+│   ├── organization/
+│   │   ├── model.py
+│   │   └── module.py
+│   ├── organization_member/
+│   │   ├── model.py
+│   │   └── module.py
+│   ├── order/
 │   │   ├── model.py
 │   │   └── module.py
 │   └── password_reset_token/
@@ -48,8 +61,6 @@ Placement of database connections, configuration, email, and similar code is out
 A project may instead group these under `core/`, `infrastructure/`, `clients/`, or another structure.
 
 Handler-called Usecases correspond to the Handler's resource structure.<br>
-`usecases/issue_password_reset.py` is an example of an Operation shared by multiple Usecases.<br>
-Because Operation is not a new layer, this structure has no `operations/` directory.
 
 ## Database Session
 
@@ -222,6 +233,116 @@ class CreateAccountUsecase:
 Only Usecase calls `commit`. Module may execute SQL through `flush`,<br>
 but it does not finalize the successful transaction.
 
+## Policy
+
+Policy does not retrieve required values from the database.<br>
+It makes a business decision or calculation only from values supplied by Usecase.
+
+```python
+# usecases/auth/_policies.py
+
+MAX_PASSWORD_RESET_REQUESTS_PER_DAY = 3
+
+
+def can_issue_password_reset(
+    *,
+    account_is_active: bool,
+    requests_today: int,
+) -> bool:
+    return (
+        account_is_active
+        and requests_today < MAX_PASSWORD_RESET_REQUESTS_PER_DAY
+    )
+```
+
+Usecase retrieves values through Modules and changes state based on the Policy result.
+
+```python
+# usecases/auth/forgot_password.py
+
+class ForgotPasswordUsecase:
+    def execute(self, email: str):
+        account = self.accounts.get_by_email(email)
+        requests_today = self.tokens.count_created_today(account.id)
+
+        if not can_issue_password_reset(
+            account_is_active=account.is_active,
+            requests_today=requests_today,
+        ):
+            raise PasswordResetNotAllowed()
+
+        self.tokens.invalidate_active_tokens(account.id)
+        token = self.tokens.create(account.id)
+        self.db.commit()
+        self.mailer.send_password_reset(account.email, token.value)
+```
+
+Database access, Module calls, `commit`, and email delivery do not move into Policy.<br>
+The Policy call and resulting branch remain visible in Usecase.
+
+## Operation
+
+Place database-backed business processing shared by multiple Usecases in the owning domain's `_operations.py`.<br>
+The following Operation retrieves an organization and member through Modules and verifies a shared authorization condition.
+
+```python
+# usecases/organizations/_operations.py
+
+class RequireOrganizationRoleOperation:
+    def __init__(self, db: Session):
+        self.organizations = OrganizationModule(db)
+        self.members = OrganizationMemberModule(db)
+
+    def run(
+        self,
+        *,
+        organization_id: int,
+        account_id: int,
+        allowed_roles: set[str],
+    ) -> None:
+        organization = self.organizations.get_by_id(organization_id)
+        if not organization:
+            raise AppError(code=ErrorCode.ORGANIZATION_NOT_FOUND)
+
+        member = self.members.get(
+            organization_id=organization_id,
+            account_id=account_id,
+        )
+        if not member or member.role not in allowed_roles:
+            raise AppError(code=ErrorCode.ACCESS_DENIED)
+```
+
+Usecase calls Operation explicitly within the primary flow and finalizes the transaction.
+
+```python
+# usecases/orders/confirm.py
+
+from app.usecases.organizations._operations import (
+    RequireOrganizationRoleOperation,
+)
+
+
+class ConfirmOrderUsecase:
+    def __init__(self, db: Session):
+        self.db = db
+        self.orders = OrderModule(db)
+        self.require_role = RequireOrganizationRoleOperation(db)
+
+    def execute(self, input):
+        order = self.orders.get_for_update(input.order_id)
+        self.require_role.run(
+            organization_id=order.seller_organization_id,
+            account_id=input.account_id,
+            allowed_roles={"ADMIN", "SALES"},
+        )
+        self.orders.confirm(order)
+        self.db.commit()
+        return order
+```
+
+Operation uses the same Session as its caller and routes every write through a Module.<br>
+Transaction finalization remains in Usecase.
+
 ## Module
 
 Module receives Session and provides reads, writes, and standard operations for exactly one table.
@@ -373,25 +494,6 @@ ForgotPasswordUsecase
 Because email is sent after the database `commit`, a delivery failure does not roll back the database change.<br>
 Add Outbox or another pattern when retries or delivery guarantees are required.
 
-When the same token-issuance flow is reused by both customer-facing and administrator-facing Usecases,<br>
-place it directly under `usecases/` as an Operation instead of calling one Usecase from another.
-
-```python
-# usecases/issue_password_reset.py
-
-class IssuePasswordResetOperation:
-    def __init__(self, db: Session):
-        self.token_module = PasswordResetTokenModule(db)
-
-    def execute(self, account_id: int):
-        self.token_module.invalidate_active_tokens(account_id)
-        return self.token_module.create(account_id)
-```
-
-Operation participates in the calling Usecase's Session and transaction<br>
-and never calls `begin`, `commit`, or `rollback`. It is not a new general-purpose layer;<br>
-it represents a reused internal business operation.
-
 ## Errors and Responses
 
 Usecase reports failures through application ErrorCode values rather than HTTP status codes.<br>
@@ -418,4 +520,4 @@ see [scaf-fast](https://github.com/kodaimura/scaf-fast).
 
 ---
 
-Previous: [Architecture and Design Pattern Comparison](05-comparison.md) | Next: [README](../README.md)
+Previous: [Architecture and Design Pattern Comparison](05-comparison.md) | Next: [Adoption Limits and Evolution](07-adoption-limits-and-evolution.md)

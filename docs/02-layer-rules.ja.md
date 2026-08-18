@@ -19,20 +19,20 @@ Handlerは、HTTP、イベント、CLIなどの呼び出し元をアプリケー
 ### 置かないもの
 
 - 業務上の条件分岐や権限判断
-- Module、Query、外部クライアントの直接呼び出し
+- Usecaseを介さないModule、Query、外部クライアントの呼び出し
 - DB操作とトランザクション管理
 - JOINや集計
 
 ## Usecase
 
 Usecaseは、説明可能な1つの業務処理と、その主要なフローを表します。<br>
-現実の分岐や特例を引き受け、必要なOperation、Module、Query、<br>
+現実の分岐や特例を引き受け、必要なModule、Query、<br>
 外部クライアントを明示的に組み合わせます。
 
 ### 置くもの
 
 - 業務上意味のある処理順序と条件分岐
-- OperationとModuleの組み合わせ、Queryによる読み取り
+- Moduleの組み合わせとQueryによる読み取り
 - 状態遷移と整合性の判断
 - トランザクション境界
 - 外部クライアントの呼び出しと失敗時の方針
@@ -68,26 +68,119 @@ Handlerから直接呼ばれるUsecaseがトランザクション境界を確定
 Usecaseの長さではなく、1つの業務処理として上から下まで追えるかで判断します。<br>
 可読性と分割の考え方は、[設計原則](03-design-principles.ja.md)で説明します。
 
-### 補助処理、共有ルール、Operation
+複数のUsecaseで同じ処理を使う場合、DBを使わない判断や計算はPolicy、<br>
+ModuleやQueryを使う処理はOperationに置けます。どちらもUsecaseから呼び出し、<br>
+Handlerからは直接呼びません。HUMQの新しい層ではありません。
 
-局所的な計算やデータ変換は、業務フローを隠さない範囲で関数へ抽出できます。<br>
-複数Usecaseで使う業務判定は、副作用のないPolicyや関数として共有できます。<br>
-Policyの呼び出しと、その結果による分岐はUsecaseに残します。
+## Policy
 
-Usecaseから別のUsecaseを呼ぶことは避けます。複数のUsecaseで再利用する内部の業務処理は、<br>
-必要であればOperationとしてUsecaseの責務内に切り出します。
+Policyは、渡された値だけで判断や計算を行う処理です。DBにはアクセスしません。<br>
+関数で十分ならクラスを作る必要もありません。
 
-OperationはHUMQの新しい層ではありません。Module、Query、外部クライアントを呼び出せますが、<br>
-呼び出し元のSessionとトランザクションに参加し、`begin`、`commit`、`rollback`を行いません。
-次の条件をすべて満たす場合にだけ、Operationへの切り出しを検討します。
+Policyは次の条件をすべて満たします。
 
-- 複数のUsecaseから実際に再利用される。
-- 独立した業務上の意味を持つ。
-- 呼び出し元Usecaseの主要なフローを隠さない。
+- DB、Session、Module、Query、外部クライアントを使わない。
+- `begin`、`commit`、`rollback`、`flush`を行わない。
+- 同じ入力に対して同じ結果を返す。
+- 呼び出しと、その結果による主要な分岐をUsecaseから読み取れる。
 
-一部のコードが似ているだけで、無関係な処理を共通化してはいけません。<br>
-複数Moduleの操作を共有する場合は、曖昧なhelperやServiceではなく、<br>
-業務上の名前を持つOperationとして表現します。
+### Policyの配置
+
+Policyと純粋な補助関数は、次の優先順位で配置します。
+
+1. 1つのUsecaseだけで使う判断や計算は、そのUsecaseファイル内に置く。
+2. 同一ドメインの複数Usecaseで共有する判断は、`usecases/<domain>/_policies.py`に置く。
+3. ドメインに依存せず全体で共有する純粋な計算だけを、`usecases/_policies.py`に置く。
+
+```text
+usecases/
+├── _policies.py
+├── procurement/
+│   ├── create_order.py
+│   ├── receive_goods.py
+│   └── _policies.py
+├── returns/
+│   ├── request_return.py
+│   ├── receive_return.py
+│   └── _policies.py
+└── billing/
+    ├── generate_invoice.py
+    ├── post_payment.py
+    └── _policies.py
+```
+
+先頭の`_`は、Handlerから直接使わない内部ファイルであることを示します。<br>
+`_policies.py`の関数や型は、ドメインの`__init__.py`から再exportしません。
+
+### Policyに置かないもの
+
+DBからのデータ取得、ModuleやQueryの呼び出し、データの更新、外部I/OはPolicyに置きません。<br>
+Usecaseを短く見せるためだけに、処理をPolicyへ移すことも避けます。
+
+例えば、返品可能数の算出式はPolicyに置けます。出荷数と過去の返品数の取得は、<br>
+ModuleまたはQueryに置き、Policyを呼んで返品を登録する流れはUsecaseに残します。
+
+## Operation
+
+Operationは、複数のUsecaseで共有するDB依存の処理です。ModuleやQueryを利用できますが、<br>
+`begin`、`commit`、`rollback`は行いません。Handlerから直接呼ばず、Usecaseから利用します。
+
+Usecaseから別のUsecaseを呼ぶ代わりに、共有する内部処理をOperationとして切り出します。
+
+認可、採番、重複確認、共通の事前条件、限定された複数テーブル更新などを、<br>
+複数Usecaseから同じ意味と規則で利用する場合にOperationを検討します。<br>
+DBを使わない処理はOperationではなくPolicyにします。
+
+### Operationの配置と命名
+
+Operationは、所有ドメインの`usecases/<domain>/_operations.py`へ、ドメインごとに1ファイルで置きます。<br>
+クラス名は`*Operation`、メソッド名は`run()`を基本とし、公開Usecaseの`*Usecase`と`execute()`から区別します。
+
+```text
+usecases/
+├── organizations/
+│   ├── create.py
+│   ├── _policies.py
+│   └── _operations.py
+├── procurement/
+│   ├── orders.py
+│   ├── receipts.py
+│   ├── _policies.py
+│   └── _operations.py
+└── billing/
+    ├── invoices.py
+    ├── payments.py
+    ├── _policies.py
+    └── _operations.py
+```
+
+先頭の`_`は内部モジュールであることを示します。`_operations.py`は`__init__.py`から再exportせず、<br>
+ルートの`usecases/_operations.py`、`operations/`、`usecases/<domain>/operations/`は作りません。<br>
+複数ドメインから使われても、Operationはその業務能力を所有するドメインに置きます。
+
+### Operationのルール
+
+- 呼び出し元Usecaseと同じSessionを使用する。
+- ModuleとQueryを呼び出してよい。
+- 1つまたは複数のテーブルを読み書きしてよいが、書き込みは各Moduleを通す。
+- 必要な検証、ロック、`flush`を行ってよい。
+- `begin`、`commit`、`rollback`を行わない。
+- Handlerから直接呼び出さない。
+- 外部クライアントの呼び出しと、複数Operationの組み合わせはUsecaseに残す。
+- 呼び出しと、結果による主要な分岐をUsecaseから読み取れるようにする。
+- 成功、失敗、呼び出し元による`rollback`をテストする。
+
+外部I/Oと失敗時の方針、トランザクションの確定は、呼び出し元Usecaseに残します。
+
+### Operationへ抽出する基準
+
+Operationへ抽出するのは、複数Usecaseから実際に使われ、同じ業務上の意味と変更理由を持ち、<br>
+同じ検証、エラー、ロック、更新順序を共有する必要がある場合です。抽出後も、<br>
+主要なフローはUsecaseから追跡できなければなりません。
+
+類似したコードを機械的に集約しません。ドメインの`_operations.py`を1ファイルに保てない、<br>
+Operation同士を呼び出したい、主要なフローがOperation側へ移る場合は、<br>
+[適用限界と発展](07-adoption-limits-and-evolution.ja.md)に従って対象ドメインの設計を見直します。
 
 ## Module
 
@@ -231,7 +324,6 @@ DB接続、設定、外部クライアント、メール、ストレージ、キ
   必要に応じて入力方式ごとのサブディレクトリへ分ける。
 - **Usecase**: Handlerから呼ばれるUsecaseは、対応するリソースのディレクトリに置き、<br>
   動詞または動詞句で命名する。
-- **Operation**: 複数Usecaseで共有する内部処理は、業務上の名前で`usecases/`直下に置く。
 - **Module**: 対応するテーブルを表す単数形の名詞で命名する。
 - **Query**: テーブル名ではなく、観測対象や業務文脈で命名する。
 - **外部クライアント**: 外部サービスや提供する通信機能で命名する。
@@ -242,7 +334,6 @@ handlers/events/order_created.py
 handlers/cli/rebuild_index.py
 usecases/accounts/signup.py
 usecases/accounts/list_accounts.py
-usecases/register_order.py
 modules/account/module.py
 modules/account_role/module.py
 queries/account_orders.py
@@ -250,13 +341,6 @@ queries/sales_report.py
 clients/payment_gateway.py
 clients/shipping_api.py
 ```
-
-`usecases/register_order.py`は、複数のUsecaseから共有されるOperationの例です。<br>
-Operationは新しい層ではないため、`operations/`ディレクトリは作りません。
-ルートのOperationが増えすぎた場合は、ディレクトリを追加する前に、<br>
-Operationを切り出しすぎていないかを見直します。
-
-`common.py`や`shared.py`のような名前は避け、ファイルが表す責務で命名します。
 
 ---
 

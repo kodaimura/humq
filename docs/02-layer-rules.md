@@ -19,20 +19,20 @@ It passes caller input to Usecase and converts the result into the caller's form
 ### Does Not Belong Here
 
 - Business conditions or authorization decisions
-- Direct calls to Module, Query, or external clients
+- Calls to Module, Query, or external clients that bypass Usecase
 - Database operations or transaction management
 - Joins or aggregations
 
 ## Usecase
 
 Usecase represents one explainable business operation and its primary flow.<br>
-It absorbs real-world branches and special cases by explicitly combining the required Operations,<br>
-Modules, Query code, and external clients.
+It absorbs real-world branches and special cases by explicitly combining the required Modules,<br>
+Query code, and external clients.
 
 ### Belongs Here
 
 - Business-significant operation order and branches
-- Combining Operations and Modules, and reading through Query
+- Combining Modules and reading through Query
 - State transitions and consistency decisions
 - Transaction boundaries
 - External client calls and post-failure policy
@@ -68,26 +68,119 @@ transaction boundaries, external I/O, and post-failure policy must be readable f
 Judge Usecase by whether one business operation remains traceable from top to bottom, not by its length.<br>
 See [Design Principles](03-design-principles.md) for readability and decomposition principles.
 
-### Helpers, Shared Rules, and Operation
+When multiple Usecases need the same processing, place decisions and calculations that do not use the database in Policy,<br>
+and processing that uses Module or Query in Operation. Both are called by Usecase,<br>
+never directly by Handler. They are not new HUMQ layers.
 
-Local calculations and data conversions may be extracted into functions when doing so does not hide the business flow.<br>
-Business decisions used by multiple Usecases may be shared as side-effect-free Policies or functions.<br>
-The Policy call and any branch based on its result remain visible in Usecase.
+## Policy
 
-Avoid calls from one Usecase to another. When an internal business operation is reused by multiple Usecases,<br>
-it may be extracted as an Operation within the Usecase responsibility.
+Policy makes a decision or calculation only from the values it receives. It does not access the database.<br>
+When a function is sufficient, no class is required.
 
-Operation is not a new HUMQ layer. It may call Module, Query, and external clients,<br>
-but it participates in the caller's Session and transaction and never calls `begin`, `commit`, or `rollback`.
-Consider extracting an Operation only when all of the following are true:
+Policy satisfies all of the following conditions:
 
-- It is genuinely reused by multiple Usecases.
-- It has an independent business meaning.
-- It does not hide the primary flow of the calling Usecase.
+- It does not use the database, Session, Module, Query, or external clients.
+- It never calls `begin`, `commit`, `rollback`, or `flush`.
+- It returns the same result for the same input.
+- Its call and the primary branch based on its result remain visible in Usecase.
 
-Do not share unrelated operations merely because some code looks similar.<br>
-When multi-Module operations must be shared, express them as an Operation with a business-specific name,<br>
-not as an ambiguously named helper or Service.
+### Policy Placement
+
+Place Policies and pure helpers in this order of preference:
+
+1. A decision or calculation used by one Usecase stays in that Usecase file.
+2. A decision shared by Usecases in one domain goes in `usecases/<domain>/_policies.py`.
+3. Only domain-independent pure calculations shared across the application go in `usecases/_policies.py`.
+
+```text
+usecases/
+├── _policies.py
+├── procurement/
+│   ├── create_order.py
+│   ├── receive_goods.py
+│   └── _policies.py
+├── returns/
+│   ├── request_return.py
+│   ├── receive_return.py
+│   └── _policies.py
+└── billing/
+    ├── generate_invoice.py
+    ├── post_payment.py
+    └── _policies.py
+```
+
+The leading `_` marks an internal file that Handler does not use directly.<br>
+Do not re-export functions or types from `_policies.py` through the domain's `__init__.py`.
+
+### Does Not Belong in Policy
+
+Database reads, Module or Query calls, data updates, and external I/O do not belong in Policy.<br>
+Do not move processing into Policy merely to make Usecase look shorter.
+
+For example, the formula for returnable quantity may belong in Policy. Retrieving shipped quantity<br>
+and prior returns belongs in Module or Query, while the flow that calls Policy and registers the return remains in Usecase.
+
+## Operation
+
+Operation is database-backed processing shared by multiple Usecases. It may use Module or Query,<br>
+but never calls `begin`, `commit`, or `rollback`. Usecase calls it; Handler does not.
+
+Extract shared internal processing as Operation instead of calling one Usecase from another.
+
+Consider Operation for authorization, numbering, duplicate checks, shared preconditions,<br>
+or limited multi-table updates used with the same meaning and rules by multiple Usecases.<br>
+Processing that does not use the database belongs in Policy, not Operation.
+
+### Operation Placement and Naming
+
+Place Operation in one `usecases/<domain>/_operations.py` file per owning domain.<br>
+Use a `*Operation` class name and normally a `run()` method to distinguish it from public `*Usecase` and `execute()`.
+
+```text
+usecases/
+├── organizations/
+│   ├── create.py
+│   ├── _policies.py
+│   └── _operations.py
+├── procurement/
+│   ├── orders.py
+│   ├── receipts.py
+│   ├── _policies.py
+│   └── _operations.py
+└── billing/
+    ├── invoices.py
+    ├── payments.py
+    ├── _policies.py
+    └── _operations.py
+```
+
+The leading `_` marks an internal module. Do not re-export `_operations.py` through `__init__.py`,<br>
+and do not create root-level `usecases/_operations.py`, `operations/`, or `usecases/<domain>/operations/`.<br>
+Even when several domains use it, Operation remains in the domain that owns the business capability.
+
+### Operation Rules
+
+- Use the same Session as the calling Usecase.
+- Module and Query may be called.
+- One or more tables may be read or written, but every write goes through its Module.
+- Required validation, locking, and `flush` are allowed.
+- Never call `begin`, `commit`, or `rollback`.
+- Handler must not call Operation directly.
+- Keep external-client calls and the composition of multiple Operations in Usecase.
+- Keep the call and primary branch based on its result visible in Usecase.
+- Test success, failure, and rollback by the caller.
+
+External I/O, post-failure policy, and transaction finalization remain in the calling Usecase.
+
+### When to Extract an Operation
+
+Extract an Operation when multiple Usecases genuinely use it, it has the same business meaning and reason to change,<br>
+and it must share the same validation, errors, locking, and update order. After extraction,<br>
+the primary flow must remain traceable from Usecase.
+
+Do not mechanically collect similar code. When a domain cannot keep `_operations.py` as one file,<br>
+Operations need to call one another, or the primary flow moves into Operations,<br>
+follow [Adoption Limits and Evolution](07-adoption-limits-and-evolution.md) and reconsider the domain's design.
 
 ## Module
 
@@ -229,7 +322,6 @@ are project choices. In particular, `core/` has no official HUMQ-specific meanin
   Event and CLI files may be grouped into input-specific subdirectories when needed.
 - **Usecase**: Place Handler-called Usecases in the corresponding resource directory<br>
   and name files with verbs or verb phrases.
-- **Operation**: Place internal operations shared by multiple Usecases directly under `usecases/` and give them business-specific names.
 - **Module**: Use a singular noun representing the corresponding table.
 - **Query**: Name it after what it observes or its business context, not after a table.
 - **External client**: Name it after the external service or communication capability it provides.
@@ -240,7 +332,6 @@ handlers/events/order_created.py
 handlers/cli/rebuild_index.py
 usecases/accounts/signup.py
 usecases/accounts/list_accounts.py
-usecases/register_order.py
 modules/account/module.py
 modules/account_role/module.py
 queries/account_orders.py
@@ -248,13 +339,6 @@ queries/sales_report.py
 clients/payment_gateway.py
 clients/shipping_api.py
 ```
-
-`usecases/register_order.py` is an example of an Operation shared by multiple Usecases.<br>
-Because Operation is not a new layer, do not create an `operations/` directory.
-If too many Operations accumulate at the root, reconsider whether too much has been extracted<br>
-before adding another directory.
-
-Avoid names such as `common.py` or `shared.py`; name each file after the responsibility it represents.
 
 ---
 
