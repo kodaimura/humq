@@ -282,7 +282,9 @@ The Policy call and resulting branch remain visible in Usecase.
 
 ## Operation
 
-Place database-backed business processing shared by multiple Usecases in the owning domain's `_operations.py`.<br>
+Place database-backed business processing shared by multiple Usecases in the owning domain's `_operations.py` first.<br>
+See [Adoption Limits and Evolution](07-adoption-limits-and-evolution.md)<br>
+for splitting rules when it becomes difficult to read.<br>
 The following Operation retrieves an organization and member through Modules and verifies a shared authorization condition.
 
 ```python
@@ -394,7 +396,7 @@ AccountModule reads and writes only the `account` table.<br>
 It neither calls another Module nor converts results into response DTOs or calls `commit`.<br>
 Database operations use SQLAlchemy 2.x `select()` and `scalars()` instead of `Session.query()`.
 
-Only when writing its owned table requires it may Module read another table as an exception.<br>
+Only when writing its target table requires it may Module read another table as an exception.<br>
 Even then, it does not change the other table's state.
 
 ## Build Cross-Table Read Models in Query

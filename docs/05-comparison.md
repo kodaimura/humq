@@ -23,23 +23,18 @@ Instead, it fixes where those concerns must be implemented and verified.
 
 ## Positioning HUMQ
 
-HUMQ is a lightweight, transaction-script-oriented application architecture<br>
-for RDB-centric business systems where Service responsibilities in MVC + Service become ambiguous,<br>
-but a rich DDD Domain Model is not required.
+HUMQ is neither a midpoint between MVC + Service and DDD<br>
+nor a higher or lower stage of architectural maturity.<br>
+It is a separate choice that prioritizes predictable placement and traceable business flows in RDB-centered applications.
 
-```text
-MVC
-  ↓
-MVC + Service
-  ↓
-HUMQ
-  ↓  When stronger shared invariants and a Domain Model become necessary
-Domain-centered design such as DDD
-```
+| Design | Primary optimization target | Basis of boundaries | Main tradeoff |
+| --- | --- | --- | --- |
+| MVC + Service | Separation of concerns and structural flexibility | Roles such as Controller, Model, and Service defined by the team | The same behavior can have several reasonable locations |
+| HUMQ | Predictable placement and traceable business flows | Usecase flow, one-table Module, and cross-table Query | Intentional RDB coupling and explicit invariant handling in Usecase |
+| Domain-centered DDD | Protection of invariants and business concepts through a Domain Model | Bounded Contexts, Aggregates, Entities, and Domain Models | Requires continuous modeling and shared design judgment about boundaries |
 
-This diagram is shorthand for increasing modeling concepts and structural protection.<br>
-DDD is also a modeling methodology, not merely an architecture,<br>
-so HUMQ and DDD do not sit on one complete linear scale of superiority.
+Moving from HUMQ to DDD is not an architectural upgrade.<br>
+It is a change in optimization target when protecting shared invariants in a Domain Model matters more than placement and traceability.
 
 HUMQ does not require Aggregate, Value Object, Domain Service, Repository,<br>
 or Bounded Context. It permits coupling to ORM models and relational tables<br>
@@ -124,7 +119,7 @@ Neither pattern by itself determines where multi-table business flows,<br>
 cross-table reads, external I/O, and transactions are composed.
 
 A HUMQ Module reads and writes exactly one table and provides that table's standard operations.<br>
-Only when writing its owned table requires it may Module read another table as an exception.<br>
+Only when writing its target table requires it may Module read another table as an exception.<br>
 It does not write other tables, own a business flow, or manage transaction boundaries.<br>
 Beyond table-oriented parts, HUMQ requires their composition to remain in Usecase<br>
 and separates cross-table reads into Query.
@@ -135,8 +130,8 @@ CQRS separates the model used to update information from the model used to read 
 The two models may share a data store or use different stores and projections.
 
 HUMQ Query resembles the Query or Read side of CQRS because it builds Read Models<br>
-shaped for a purpose from multiple tables. As an exception, a complex one-table read<br>
-may also belong in Query when it does not fit Module's standard operations.<br>
+shaped for a purpose. It normally reads across multiple tables. As an exception, a complex<br>
+or purpose-specific read may belong in Query even when it uses only one table.<br>
 However, HUMQ does not require independent Command and Read Models for every operation.<br>
 Separate data stores, asynchronous projection updates, and eventual consistency are not HUMQ prerequisites.
 
@@ -226,7 +221,7 @@ Mechanical boundaries do not automatically guarantee business correctness. HUMQ 
 
 - Keep each Usecase to one business purpose, such as “confirm an order,” that can be explained from top to bottom.
 - Make consistency, state transitions, external I/O, and transaction boundaries explicit in Usecase.
-- As a rule, keep each Module closed around reads and writes of exactly one table.
+- Keep each Module closed around reads and writes of exactly one table.
 - Keep Query read-only.
 - Limit Handler to input and output for the caller.
 - Verify the consistency rules owned by Usecase through tests.

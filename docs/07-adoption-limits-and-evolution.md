@@ -20,29 +20,51 @@ When these conditions are not met, duplication is an intentional choice that pro
 
 ## Use Operation as the Normal Sharing Mechanism
 
-Place database-backed shared processing in the owning domain's `_operations.py`.<br>
-Keep one file per domain and do not split it into an `operations/` directory.
+Place database-backed shared processing in the owning domain's `_operations.py` first.<br>
+When one file becomes difficult to read, split it into multiple files directly under the same domain,<br>
+grouped by business capability or reason to change.
+
+```text
+usecases/
+└── procurement/
+    ├── create_order.py
+    ├── receive_goods.py
+    ├── _policies.py
+    ├── _authorization_operations.py
+    └── _numbering_operations.py
+```
+
+Use `_<business-capability>_operations.py` as the naming pattern.<br>
+Do not group files by generic or technical categories such as `_helpers.py`, `_common_operations.py`,<br>
+`_database_operations.py`, or `_misc_operations.py`, and do not split mechanically into one file per class.
+
+After splitting, the owning domain must remain clear, references must be easier to trace from Usecase,<br>
+and the primary flow must remain visible. Do not re-export Operation files through `__init__.py`,<br>
+and do not create root-level `usecases/_operations.py` or `usecases/<domain>/operations/`.<br>
+Even when several domains use it, Operation remains in the domain that owns the business capability.
 
 See [Layer Rules](02-layer-rules.md#operation) for Operation placement and rules.
 
-## Use `_operations.py` as an Adoption-Limit Guide
+## Use Operation Growth as an Adoption-Limit Guide
 
-There is no line-count limit. Judge whether `_operations.py` fits naturally in one file<br>
-and remains explainable as support for Usecase.
+There is no limit based on lines or number of files.<br>
+Splitting Operations across multiple files is not itself an adoption limit.<br>
+Judge whether their business ownership remains explainable and they remain supportive of the primary flow in Usecase.
 
 When several of the following signals appear, stop adding Operations and reconsider the affected domain's design.
 
-- You want to split `_operations.py` into multiple files.
-- Unrelated Operations accumulate and cannot be explained as one business area.
-- One Operation needs to call another Operation.
+- The owning domain or reason to change for an Operation cannot be explained.
+- Unrelated shared processing accumulates into a de facto generic Service.
+- Calls or dependency chains among Operations must be traced.
 - Many Usecases do little more than call Operations in order and then `commit`.
-- Primary business flows move from Usecase into Operations.
+- Primary business flows or branches move from Usecase into Operations.
 - Many tables must always be treated as one consistency boundary.
+- Protecting the same complex shared invariants becomes central to the domain.
 
 ## At the Adoption Limit
 
-Do not add an `operations/` directory or split Operations into smaller Operations and chain them.<br>
-First reconsider whether the affected domain boundary is too broad.
+Do not hide a structural problem by only reorganizing Operation files.<br>
+First reconsider the affected domain boundary and ownership of shared processing.
 
 When shared invariants become the center of complexity, incrementally migrate only the affected domain<br>
 to DDD, aggregate-centered design, or another appropriate design.<br>

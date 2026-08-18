@@ -133,30 +133,22 @@ Processing that does not use the database belongs in Policy, not Operation.
 
 ### Operation Placement and Naming
 
-Place Operation in one `usecases/<domain>/_operations.py` file per owning domain.<br>
+Place Operation in the owning domain's `usecases/<domain>/_operations.py` by default.<br>
+Keep Operations together in that file while there are only a few.<br>
 Use a `*Operation` class name and normally a `run()` method to distinguish it from public `*Usecase` and `execute()`.
 
 ```text
 usecases/
-├── organizations/
-│   ├── create.py
-│   ├── _policies.py
-│   └── _operations.py
-├── procurement/
-│   ├── orders.py
-│   ├── receipts.py
-│   ├── _policies.py
-│   └── _operations.py
-└── billing/
-    ├── invoices.py
-    ├── payments.py
+└── procurement/
+    ├── create_order.py
+    ├── receive_goods.py
     ├── _policies.py
     └── _operations.py
 ```
 
-The leading `_` marks an internal module. Do not re-export `_operations.py` through `__init__.py`,<br>
-and do not create root-level `usecases/_operations.py`, `operations/`, or `usecases/<domain>/operations/`.<br>
-Even when several domains use it, Operation remains in the domain that owns the business capability.
+The leading `_` marks an internal module. Do not re-export `_operations.py` through `__init__.py`.<br>
+See [Adoption Limits and Evolution](07-adoption-limits-and-evolution.md)<br>
+for splitting rules when Operation no longer fits readably in one file.
 
 ### Operation Rules
 
@@ -166,6 +158,7 @@ Even when several domains use it, Operation remains in the domain that owns the 
 - Required validation, locking, and `flush` are allowed.
 - Never call `begin`, `commit`, or `rollback`.
 - Handler must not call Operation directly.
+- Do not call another Operation.
 - Keep external-client calls and the composition of multiple Operations in Usecase.
 - Keep the call and primary branch based on its result visible in Usecase.
 - Test success, failure, and rollback by the caller.
@@ -178,32 +171,26 @@ Extract an Operation when multiple Usecases genuinely use it, it has the same bu
 and it must share the same validation, errors, locking, and update order. After extraction,<br>
 the primary flow must remain traceable from Usecase.
 
-Do not mechanically collect similar code. When a domain cannot keep `_operations.py` as one file,<br>
-Operations need to call one another, or the primary flow moves into Operations,<br>
-follow [Adoption Limits and Evolution](07-adoption-limits-and-evolution.md) and reconsider the domain's design.
-
 ## Module
 
-As a rule, Module reads and writes exactly one table<br>
-and groups that table's standard data operations. Each table written by HUMQ has<br>
-exactly one Module that owns its operations.
+Module reads and writes exactly one table.
 
 As a result, a normalized table structure may appear in Usecase as multiple Module calls.<br>
 This is an intentional consequence of prioritizing a mechanical answer to where a table is changed<br>
 over abstract Domain boundaries.
 
-As an exception, when writing its owned table requires information from another table,<br>
+As an exception, when writing its target table requires information from another table,<br>
 Module may read it through SELECT, joins, or subqueries. It must not change the other table<br>
 or use this exception to broaden its normal read scope.
 
 ### Belongs Here
 
-- Creating, updating, and deleting rows in the one owned table
+- Creating, updating, and deleting rows in the one target table
 - Standard retrieval such as lookup by primary key, existence checks, and standard lists
-- Basic searches for the owned table that recur across multiple Usecases
+- Basic searches for the target table that recur across multiple Usecases
 - Constraints and state changes decidable from that table's values alone
 - Concurrency control for one table, such as conditional updates or locks
-- As an exception, reads from other tables required to write the owned table
+- As an exception, reads from other tables required to write the target table
 - Persistence implementation details using an ORM or SQL
 
 ### Does Not Belong Here
@@ -234,8 +221,8 @@ If a multi-table write through one SQL statement or stored procedure cannot be a
 document it as an exception to the standard rule: identify the affected tables and rationale,<br>
 record an ADR, and protect it with an integration test. Do not expand this exception into a generic Service.
 
-Query may read a table owned by Module, but another Module must not expose<br>
-a second write API for the same table. A writable join table also has its own Module.
+Query may also read a Module's target table.<br>
+An intermediate table written by HUMQ has its own Module.
 
 Repository is not a HUMQ layer and is not required.<br>
 Use it only as an internal Module implementation when persistence code must be separated.<br>
@@ -243,13 +230,11 @@ Usecase does not call Repository directly, and extracting one does not change th
 
 ## Query
 
-Query reads across multiple tables to build models required by screens, searches, reports,<br>
-and similar purposes. As a rule, choose between Module and Query by asking whether the operation<br>
-is a standard operation on one table or a read that spans multiple tables.
+Query is read-only. It reads across multiple tables to build models for screens, searches, reports, CSV exports, and analysis.
 
-Standard operations for a Module's owned table, such as lookup by primary key,<br>
+Standard operations for a Module's target table, such as lookup by primary key,<br>
 existence checks, and standard lists, belong in Module. As an exception, a complex query specific to a screen<br>
-or display DTO, a window function, specialized SQL statement, or other read that does not fit Module's<br>
+or display DTO, a window function, specialized SQL statement, or other purpose-specific read that does not fit Module's<br>
 standard operations may belong in Query even when it reads only one table.
 
 Even when joins, aggregations, and search conditions make Query long,<br>
@@ -257,7 +242,7 @@ do not split it by line count while it still represents one observation purpose 
 
 ### Belongs Here
 
-- Reads across multiple tables for screens, searches, reports, CSV exports, dashboards, and analysis
+- Read models spanning multiple tables for screens, searches, reports, CSV exports, dashboards, and analysis
 - Cross-table joins and aggregations
 - As an exception, one-table reads using complex criteria, window functions, JSON, or purpose-specific SQL
 - Conversion into read models shaped for a screen or business context

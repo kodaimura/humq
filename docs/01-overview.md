@@ -8,7 +8,7 @@ and keeps business complexity traceable from Usecase.
 - **Handler**: Handles input and output for callers through HTTP, events, CLI, and similar entry points.
 - **Usecase**: Handles business flows, branches, state changes, consistency, and transaction boundaries.
 - **Module**: Reads and writes exactly one table.
-- **Query**: Reads across multiple tables and never writes.
+- **Query**: Handles reads spanning multiple tables and never writes.
 
 An external client is not a HUMQ layer.<br>
 It is an adapter that hides communication with email providers, payment gateways, external APIs, and similar systems.

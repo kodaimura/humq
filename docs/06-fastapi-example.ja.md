@@ -281,7 +281,9 @@ Policyの呼び出しと、その結果による分岐はUsecaseから確認で�
 
 ## Operation
 
-複数Usecaseで共有するDB依存の業務処理は、所有ドメインの`_operations.py`へ置きます。<br>
+複数Usecaseで共有するDB依存の業務処理は、まず所有ドメインの`_operations.py`へ置きます。<br>
+増えて読みづらくなった場合の分割ルールは、<br>
+[適用限界と発展](07-adoption-limits-and-evolution.ja.md)で説明します。<br>
 次のOperationは、組織とメンバーをModuleから取得し、共通の認可条件を検証します。
 
 ```python
@@ -393,7 +395,7 @@ AccountModuleは`account`テーブルだけを読み書きします。<br>
 別のModuleを呼ばず、`commit`やResponse DTOへの変換も行いません。<br>
 DB操作には、`Session.query()`ではなくSQLAlchemy 2.xの`select()`と`scalars()`を使います。
 
-所有するテーブルへの書き込みに必要な場合だけ、例外として別テーブルを参照できます。<br>
+対象テーブルへの書き込みに必要な場合だけ、例外として別テーブルを参照できます。<br>
 その場合も、別テーブルの状態は変更しません。
 
 ## Queryで横断的な読み取りモデルを作る
