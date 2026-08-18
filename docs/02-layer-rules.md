@@ -195,7 +195,7 @@ or use this exception to broaden its normal read scope.
 
 ### Does Not Belong Here
 
-- Writes to any table it does not own
+- Writes to tables other than the target table
 - Dependencies on other Modules
 - Usecase-specific branches or business flows
 - Finalizing transaction boundaries with `commit` or `rollback`
