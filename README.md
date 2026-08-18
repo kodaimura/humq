@@ -6,7 +6,7 @@
 
 For applications centered on a relational database, HUMQ assigns<br>
 caller input and output to Handler, business flows and transactions to Usecase,<br>
-reads and writes of exactly one table to Module, and cross-table reads to Query.<br>
+one-table reads and writes to Module by default, and cross-table reads to Query.<br>
 Instead of splitting complexity into abstractions that hide it,<br>
 HUMQ keeps that complexity traceable from Usecase.
 

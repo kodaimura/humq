@@ -173,7 +173,7 @@ the primary flow must remain traceable from Usecase.
 
 ## Module
 
-Module reads and writes exactly one table.
+By default, Module reads and writes one table.
 
 As a result, a normalized table structure may appear in Usecase as multiple Module calls.<br>
 This is an intentional consequence of prioritizing a mechanical answer to where a table is changed<br>

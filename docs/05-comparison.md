@@ -30,7 +30,7 @@ It is a separate choice that prioritizes predictable placement and traceable bus
 | Design | Primary optimization target | Basis of boundaries | Main tradeoff |
 | --- | --- | --- | --- |
 | MVC + Service | Separation of concerns and structural flexibility | Roles such as Controller, Model, and Service defined by the team | The same behavior can have several reasonable locations |
-| HUMQ | Predictable placement and traceable business flows | Usecase flow, one-table Module, and cross-table Query | Intentional RDB coupling and explicit invariant handling in Usecase |
+| HUMQ | Predictable placement and traceable business flows | Usecase flow, a one-table Module by default, and cross-table Query | Intentional RDB coupling and explicit invariant handling in Usecase |
 | Domain-centered DDD | Protection of invariants and business concepts through a Domain Model | Bounded Contexts, Aggregates, Entities, and Domain Models | Requires continuous modeling and shared design judgment about boundaries |
 
 Moving from HUMQ to DDD is not an architectural upgrade.<br>
@@ -50,7 +50,7 @@ and transaction ownership.<br>
 Several reasonable answers may exist for whether the same behavior belongs in Controller, Model, or Service.
 
 HUMQ removes the generic Service role and fixes caller input/output in Handler, business flow in Usecase,<br>
-reads and writes of exactly one table in Module, and cross-table reads in Query.<br>
+one-table reads and writes in Module by default, and cross-table reads in Query.<br>
 It gives up some flexibility to keep placement stable across developers.
 
 HUMQ's value is not inventing new concepts.<br>
@@ -105,7 +105,7 @@ If each Script accesses the database directly or begins choosing different Gatew
 lower-level responsibilities and consistency handling can diverge.
 
 HUMQ adds mechanical boundaries to Transaction Script: `1 Usecase = 1 Primary Flow`,<br>
-`Module = reads and writes exactly one table`, and `Query = cross-table reads`,<br>
+`Module = one-table reads and writes by default`, and `Query = cross-table reads`,<br>
 with transaction boundaries made explicit in Usecase.<br>
 It keeps the procedural nature of Usecase visible while making lower-level parts simple and predictable.
 
@@ -118,7 +118,7 @@ Both resemble HUMQ's Module in treating a relational table as an explicit bounda
 Neither pattern by itself determines where multi-table business flows,<br>
 cross-table reads, external I/O, and transactions are composed.
 
-A HUMQ Module reads and writes exactly one table and provides that table's standard operations.<br>
+By default, a HUMQ Module reads and writes one table and provides that table's standard operations.<br>
 Only when writing its target table requires it may Module read another table as an exception.<br>
 It does not write other tables, own a business flow, or manage transaction boundaries.<br>
 Beyond table-oriented parts, HUMQ requires their composition to remain in Usecase<br>
@@ -221,7 +221,7 @@ Mechanical boundaries do not automatically guarantee business correctness. HUMQ 
 
 - Keep each Usecase to one business purpose, such as “confirm an order,” that can be explained from top to bottom.
 - Make consistency, state transitions, external I/O, and transaction boundaries explicit in Usecase.
-- Keep each Module closed around reads and writes of exactly one table.
+- By default, keep each Module closed around reads and writes for one table.
 - Keep Query read-only.
 - Limit Handler to input and output for the caller.
 - Verify the consistency rules owned by Usecase through tests.

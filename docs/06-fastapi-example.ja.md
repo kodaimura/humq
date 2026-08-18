@@ -346,7 +346,7 @@ Operationは呼び出し元と同じSessionを使い、書き込みは各Module�
 
 ## Module
 
-ModuleはSessionを受け取り、正確に1テーブルの読み書きと標準操作を提供します。
+ModuleはSessionを受け取り、原則として1テーブルの読み書きと標準操作を提供します。
 
 ```python
 # modules/account/module.py

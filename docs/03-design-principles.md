@@ -57,10 +57,10 @@ Decisions such as "these things are related," "this is used only by this screen,
 may all be reasonable, but their conclusions change with the person and situation.
 
 HUMQ fixes input and output for the caller in Handler, business flows in Usecase,<br>
-reads and writes of exactly one table in Module, and cross-table reads in Query.<br>
+one-table reads and writes in Module by default, and cross-table reads in Query.<br>
 It prioritizes consistent placement across developers over making every individual boundary locally elegant.
 
-## Principle 5: A Broken System Can Be Fixed. A Distorted Structure Cannot
+## Principle 5: Bugs Can Be Fixed. Distortion Eventually Becomes Unmanageable.
 
 Here, "breakage" means a defect causing the system to stop behaving as expected.<br>
 "Distortion" means responsibility boundaries change with the person or situation,<br>

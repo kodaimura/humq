@@ -12,7 +12,7 @@ and database transaction boundaries are Usecase responsibilities.
 
 - **Usecase**: Owns cross-table consistency, operation order, failure conditions, and transaction boundaries.
 - **Operation**: Uses Module or Query in the caller's Session to perform shared internal processing.
-- **Module**: Reads and writes exactly one table and does not call `commit` or `rollback`.
+- **Module**: By default, reads and writes one table and does not call `commit` or `rollback`.
 - **Query**: Is read-only and does not own transaction boundaries.
 - **Database**: Enforces database-expressible constraints and provides concurrency-control mechanisms.
 - **Test**: Verifies business branches, failures, and `rollback` behavior.

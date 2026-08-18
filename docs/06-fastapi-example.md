@@ -347,7 +347,7 @@ Transaction finalization remains in Usecase.
 
 ## Module
 
-Module receives Session and provides reads, writes, and standard operations for exactly one table.
+Module receives Session and provides reads, writes, and standard operations for one table by default.
 
 ```python
 # modules/account/module.py

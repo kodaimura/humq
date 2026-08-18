@@ -7,7 +7,7 @@ and keeps business complexity traceable from Usecase.
 
 - **Handler**: Handles input and output for callers through HTTP, events, CLI, and similar entry points.
 - **Usecase**: Handles business flows, branches, state changes, consistency, and transaction boundaries.
-- **Module**: Reads and writes exactly one table.
+- **Module**: By default, handles reads and writes for one table.
 - **Query**: Handles reads spanning multiple tables and never writes.
 
 An external client is not a HUMQ layer.<br>
@@ -19,7 +19,7 @@ It is an adapter that hides communication with email providers, payment gateways
 | --- | --- |
 | Caller input and output | Handler |
 | Business flow composition | Usecase |
-| Reads and writes exactly one table | Module |
+| Reads and writes for one table by default | Module |
 | Reads spanning multiple tables | Query |
 
 Communication with external systems belongs in external clients called by Usecase.<br>
@@ -31,7 +31,7 @@ Placement follows the operation target and type instead of a new interpretation 
 flowchart TD
     input["Caller input"] --> handler["Handler"]
     handler --> usecase["Usecase"]
-    usecase --> module["Module<br>Reads and writes exactly one table"]
+    usecase --> module["Module<br>Reads and writes one table by default"]
     usecase --> query["Query<br>Reads spanning multiple tables"]
     usecase --> client["External client<br>External-system communication"]
 ```
