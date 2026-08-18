@@ -3,6 +3,9 @@
 Using the structure and implementation style of [scaf-fast](https://github.com/kodaimura/scaf-fast) as a reference,<br>
 this chapter shows how to apply HUMQ to FastAPI. Configuration and implementation details unnecessary to the explanation are omitted.
 
+See [humq-sample](https://github.com/kodaimura/humq-sample)<br>
+for a larger implementation example of HUMQ.
+
 HUMQ does not require class-based Usecases or Modules.<br>
 This example follows scaf-fast by injecting the database Session and dependencies through constructors.
 

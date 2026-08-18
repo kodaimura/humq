@@ -3,6 +3,9 @@
 この章では、[scaf-fast](https://github.com/kodaimura/scaf-fast)の構成と実装方法を参考に、<br>
 FastAPIへHUMQを適用する例を示します。説明に不要な設定や実装は省略しています。
 
+HUMQを適用した、より大きな実装例は、<br>
+[humq-sample](https://github.com/kodaimura/humq-sample)で確認できます。
+
 UsecaseやModuleをクラスにすることはHUMQの必須規則ではありません。<br>
 ここでは、DBセッションと依存関係をコンストラクタから渡すscaf-fastの形式を採用します。
 

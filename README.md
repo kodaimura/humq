@@ -114,6 +114,7 @@ where it fits, and when another design may be more appropriate.
 - [Architecture and design pattern comparison](docs/05-comparison.md)
 - [Adoption and tradeoffs](docs/05-comparison.md#adoption-and-tradeoffs)
 - [FastAPI example](docs/06-fastapi-example.md)
+- [Implementation example (humq-sample)](https://github.com/kodaimura/humq-sample)
 - [Adoption limits and evolution](docs/07-adoption-limits-and-evolution.md)
 
 ## License

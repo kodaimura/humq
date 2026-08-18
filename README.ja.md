@@ -111,6 +111,7 @@ HUMQのメリットとデメリット、向いている場面、別の設計が�
 - [既存アーキテクチャ・設計パターンとの比較](docs/05-comparison.ja.md)
 - [適用判断とトレードオフ](docs/05-comparison.ja.md#適用判断とトレードオフ)
 - [FastAPI構成例](docs/06-fastapi-example.ja.md)
+- [実装例（humq-sample）](https://github.com/kodaimura/humq-sample)
 - [適用限界と発展](docs/07-adoption-limits-and-evolution.ja.md)
 
 ## License
