@@ -55,7 +55,7 @@ def confirm_order(session, order_id: int) -> None:
 
 When inventory is insufficient, an exception causes all preceding inventory updates,<br>
 the order confirmation, and the delivery request to `rollback` together.<br>
-Usecase shows which Modules are combined and which writes fail together.
+Usecase shows which Modules are combined and which writes succeed or fail together.
 
 HUMQ does not require `1 Usecase = 1 Transaction`.<br>
 A read-only Usecase may not need an explicit transaction.<br>
