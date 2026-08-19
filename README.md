@@ -12,17 +12,14 @@ HUMQ keeps that complexity traceable from Usecase.
 
 > **Bugs can be fixed. Distortion eventually becomes unmanageable.**
 
-HUMQ is an application architecture that does not tolerate structural distortion.
+In real business operations, branches and special cases emerge that do not fit the original design.<br>
+HUMQ calls this business complexity "chaos."
 
-Here, "distortion" means that responsibility boundaries become ambiguous,<br>
-so the structure can no longer determine where an operation belongs.
+When chaos has no defined place, responsibility boundaries become ambiguous and the structure begins to distort.<br>
+HUMQ calls this state, in which the placement of complexity has broken down, "distortion."
 
-In real operations, branches and special cases emerge that do not fit<br>
-the original design. When such chaos has no defined place,<br>
-the structure begins to distort.<br>
-HUMQ does not try to eliminate such chaos and impose order on everything.<br>
-It allows necessary chaos within order and uses responsibility boundaries<br>
-to limit where that chaos belongs and how far its effects may spread.
+HUMQ does not eliminate chaos. It allows necessary chaos within order<br>
+and prevents structural distortion by using responsibility boundaries to limit where it belongs and how far its effects may spread.
 
 > **The structure—not the individual developer—decides where code belongs.**
 
@@ -89,7 +86,7 @@ so code placement remains stable as people change.
 ## HUMQ's Solution
 
 HUMQ is a lightweight architecture for RDB-centered applications<br>
-that keeps code placement from depending on individual judgment.
+that reduces the decisions developers must make about code placement.
 
 It fixes the responsibility boundaries of Handler, Usecase, Module, and Query,<br>
 so where code belongs and where a change should be traced remain stable as the business grows more complex.<br>
