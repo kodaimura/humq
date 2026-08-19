@@ -1,12 +1,20 @@
 # Handling Consistency
 
-HUMQ does not automatically protect consistency across multiple tables through its structure.<br>
-If a required Module call or validation is omitted from Usecase, data inconsistency becomes more likely.<br>
-This is a major tradeoff that HUMQ accepts.
+In HUMQ, consistency across multiple tables and database transaction boundaries are Usecase responsibilities.<br>
+This chapter explains the risks that this design accepts<br>
+and how Usecase, Module, Database, and tests protect consistency.
 
-That makes it essential to define where consistency is protected.<br>
-In HUMQ, business consistency across multiple tables<br>
-and database transaction boundaries are Usecase responsibilities.
+## HUMQ's Tradeoff
+
+HUMQ does not structurally guarantee consistency across multiple tables.<br>
+Even when Handler, Usecase, Module, and Query follow their responsibility boundaries correctly,<br>
+an omitted Module call or consistency rule in Usecase can allow inconsistent data to be committed.
+
+This is a HUMQ constraint and an intentional tradeoff for lightweight, explicit placement rules.<br>
+Database constraints and Usecase tests reduce the risk, but they cannot express every business invariant<br>
+or make implementation omissions impossible by construction.<br>
+Where that risk is unacceptable, choose a design such as aggregate-centered DDD<br>
+that confines invariants within a Domain Model.
 
 ## Responsibilities
 
@@ -81,23 +89,15 @@ It guarantees that the database state change and the delivery request are record
 Write business flows and consistency decisions directly in each Usecase by default.<br>
 When multiple Usecases must preserve the same invariant and allowing the implementation to diverge<br>
 would cause an inconsistency such as double-booking, negative stock, or a duplicate charge,<br>
-the processing may be shared as an Operation as an exception.
+the processing may be centralized in an Operation as an exceptional fallback.
 
-Operation is not a component for shortening Usecases or a general-purpose code-reuse mechanism.<br>
-If you cannot name the invariant and the concrete consequence of violating it, keep the processing in Usecase.
+Operation keeps the implementation of that invariant in one place,<br>
+preventing divergence and partial-update omissions across Usecases.<br>
+It does not add structural consistency guarantees to HUMQ as a whole;<br>
+it is an exception reserved for invariants whose implementations cannot be allowed to diverge.
 
 Operation participates in the same Session as the calling Usecase and delegates every write to a Module.<br>
 It never calls `begin`, `commit`, or `rollback`; the calling Usecase still owns the transaction boundary.
-
-## HUMQ's Tradeoff
-
-HUMQ does not automatically prevent a missing Module call or consistency rule.<br>
-An omission in Usecase can still produce inconsistent state.<br>
-Sharing through Operation does not structurally prevent a caller from omitting it.
-
-Database constraints and Usecase tests are therefore used together.<br>
-HUMQ provides no automatic guarantee of consistency.<br>
-It provides a structure in which responsibility for consistency and the scope to inspect during change do not spread.
 
 ---
 

@@ -69,8 +69,8 @@ Do not hide a structural problem by only reorganizing Operation files.<br>
 First reconsider the affected domain boundary and ownership of shared processing.
 
 By keeping one invariant implementation in one place, Operation can provide part of the role of an Aggregate.<br>
-It does not structurally prevent callers from omitting it. When Operations continue to grow,<br>
-or when an omitted call itself is unacceptable, incrementally migrate only the affected domain<br>
+It prevents divergence and partial-update omissions across Usecases. When Operations continue to grow,<br>
+or complex shared invariants become central to the affected domain, incrementally migrate only that domain<br>
 to DDD, aggregate-centered design, or another appropriate design.<br>
 Keeping the Handler-called Usecase allows the internal design to change without changing the external API.
 
