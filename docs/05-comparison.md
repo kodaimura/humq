@@ -23,9 +23,14 @@ Instead, it fixes where those concerns must be implemented and verified.
 
 ## Positioning HUMQ
 
-HUMQ is neither a midpoint between MVC + Service and DDD<br>
-nor a higher or lower stage of architectural maturity.<br>
-It is a separate choice that prioritizes predictable placement and traceable business flows in RDB-centered applications.
+HUMQ provides clearer code placement than MVC + Service<br>
+and uses fewer design concepts than aggregate-centered DDD, making it a lightweight application architecture.<br>
+In exchange for that lighter structure, each Usecase explicitly protects consistency across multiple tables.
+
+This choice assumes that protecting every domain with an Aggregate is often overengineering,<br>
+and that only a limited part of a system needs invariants enforced so callers cannot omit them.<br>
+HUMQ is neither a midpoint between MVC + Service and DDD nor a higher or lower stage of architectural maturity.<br>
+It chooses a different default for what the structure itself must protect.
 
 | Design | Primary optimization target | Basis of boundaries | Main tradeoff |
 | --- | --- | --- | --- |
@@ -91,8 +96,13 @@ However, if a Usecase fails to call a required Module,<br>
 a consistency rule may be omitted.<br>
 HUMQ is not simplified DDD;<br>
 it is a different choice that prioritizes predictable placement over protection through modeling.
-When many Usecases share the same multi-table invariants,<br>
-DDD may be a better fit because it can protect those invariants inside a Domain Model.
+
+Designing every domain around Aggregates from the beginning adds the continuing cost of modeling<br>
+and maintaining boundaries even where invariants are simple. HUMQ starts with a lightweight structure.<br>
+Only when multiple Usecases must preserve the same invariant may its implementation be centralized,<br>
+as an exception, in an Operation. This keeps the implementation in one place.<br>
+However, Operation does not structurally prevent callers from omitting it. When Operations continue to grow,<br>
+or when an omitted call itself is unacceptable, aggregate-centered design is a better fit.
 
 ## Transaction Script
 
@@ -154,7 +164,7 @@ HUMQ's applicability is not determined by table count or lines of code alone.
 | Many APIs, Usecases, screens, or reports | Applicable |
 | Long individual flows with many branches and exceptions | Good fit because they remain traceable from Usecase |
 | Many complex cross-table reads | Good fit because they can be separated into Query |
-| Multiple Usecases share the same database-backed processing | May be shared in a limited Operation |
+| Multiple Usecases share the same invariant and its implementation cannot diverge | May be centralized in an Operation as an exception |
 | Operations hold primary flows or many shared invariants | Evaluate the adoption limit |
 | Interactions among complex Domain Models are central | Consider DDD or another domain-centered design |
 
@@ -167,6 +177,8 @@ from safely reusing complex shared invariants.
 - Easier tracing of business flows, state transitions, and transaction boundaries from Usecase during a change.
 - More predictable impact and code scope for one-table operations.
 - Prevention of complex lists and reports from becoming mixed into write processing.
+- Business flows remain local to Usecase, bounding the context needed for one change<br>
+  and helping both people and AI agents identify what to inspect.
 
 ### Drawbacks of HUMQ
 

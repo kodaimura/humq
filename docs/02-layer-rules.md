@@ -68,9 +68,10 @@ transaction boundaries, external I/O, and post-failure policy must be readable f
 Judge Usecase by whether one business operation remains traceable from top to bottom, not by its length.<br>
 See [Design Principles](03-design-principles.md) for readability and decomposition principles.
 
-When multiple Usecases need the same processing, place decisions and calculations that do not use the database in Policy,<br>
-and processing that uses Module or Query in Operation. Both are called by Usecase,<br>
-never directly by Handler. They are not new HUMQ layers.
+Keep processing in each Usecase by default. Pure decisions and calculations shared by multiple Usecases<br>
+may be extracted as Policy. Use Operation only as an exception when multiple Usecases must preserve<br>
+the same invariant and its implementation cannot be allowed to diverge.<br>
+Neither is a new HUMQ layer; both remain internal parts of the Usecase responsibility.
 
 ## Policy
 
@@ -122,14 +123,12 @@ and prior returns belongs in Module or Query, while the flow that calls Policy a
 
 ## Operation
 
-Operation is database-backed processing shared by multiple Usecases. It may use Module or Query,<br>
-but never calls `begin`, `commit`, or `rollback`. Usecase calls it; Handler does not.
+Operation is not part of HUMQ's basic structure. Business flows belong directly in Usecase by default.<br>
+Database-backed processing may be shared as Operation only when multiple Usecases must preserve the same invariant<br>
+and allowing its implementation to diverge would cause a concrete inconsistency.
 
-Extract shared internal processing as Operation instead of calling one Usecase from another.
-
-Consider Operation for authorization, numbering, duplicate checks, shared preconditions,<br>
-or limited multi-table updates used with the same meaning and rules by multiple Usecases.<br>
-Processing that does not use the database belongs in Policy, not Operation.
+Operation may use Module or Query, but never calls `begin`, `commit`, or `rollback`.<br>
+Usecase calls it; Handler does not.
 
 ### Operation Placement and Naming
 
@@ -167,9 +166,10 @@ External I/O, post-failure policy, and transaction finalization remain in the ca
 
 ### When to Extract an Operation
 
-Extract an Operation when multiple Usecases genuinely use it, it has the same business meaning and reason to change,<br>
-and it must share the same validation, errors, locking, and update order. After extraction,<br>
-the primary flow must remain traceable from Usecase.
+Extract an Operation only when multiple Usecases must preserve the same invariant<br>
+and its validation, errors, locking, and update order cannot be allowed to diverge.<br>
+If you cannot name the invariant and the concrete inconsistency its violation would cause, keep the processing in Usecase.<br>
+After extraction, the primary flow must remain traceable from Usecase.
 
 ## Module
 

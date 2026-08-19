@@ -3,7 +3,8 @@
 HUMQ's adoption limit is not determined by table count, Usecase count, or lines of code alone.<br>
 Judge whether primary business flows remain traceable from Usecase and shared processing remains supportive.
 
-Database-backed shared processing may be placed in Operation, so the existence of Operation is not itself an adoption limit.
+Operation is an exception used only when the implementation of the same invariant cannot be allowed to diverge.<br>
+One Operation does not itself mark the adoption limit, but growing numbers of them are a signal to revisit the design.
 
 ## Before Sharing Processing
 
@@ -12,15 +13,16 @@ Similar processing, a long Usecase, or many Module calls alone do not require sh
 Before extracting an Operation, verify that it:
 
 - Is genuinely used by multiple Usecases.
-- Has the same business meaning and changes for the same reason.
+- Protects the same invariant and cannot be allowed to diverge.
+- Has a concrete inconsistency that can be named as the consequence of violating the invariant.
 - Must share the same validation, errors, locking, and update order.
 - Leaves the primary flow traceable from Usecase after extraction.
 
 When these conditions are not met, duplication is an intentional choice that protects traceability.
 
-## Use Operation as the Normal Sharing Mechanism
+## Use Operation as an Exception
 
-Place database-backed shared processing in the owning domain's `_operations.py` first.<br>
+Place the processing in the owning domain's `_operations.py` only when the criteria above are satisfied.<br>
 When one file becomes difficult to read, split it into multiple files directly under the same domain,<br>
 grouped by business capability or reason to change.
 
@@ -30,8 +32,8 @@ usecases/
     ├── create_order.py
     ├── receive_goods.py
     ├── _policies.py
-    ├── _authorization_operations.py
-    └── _numbering_operations.py
+    ├── _reservation_operations.py
+    └── _billing_operations.py
 ```
 
 Use `_<business-capability>_operations.py` as the naming pattern.<br>
@@ -47,9 +49,9 @@ See [Layer Rules](02-layer-rules.md#operation) for Operation placement and rules
 
 ## Use Operation Growth as an Adoption-Limit Guide
 
-There is no limit based on lines or number of files.<br>
-Splitting Operations across multiple files is not itself an adoption limit.<br>
-Judge whether their business ownership remains explainable and they remain supportive of the primary flow in Usecase.
+Lines or file count alone do not set a limit, but Operation is an exception;<br>
+do not treat its growth as normal. Even when splitting Operations across files for readability,<br>
+verify that they remain supportive of the primary flow in Usecase.
 
 When several of the following signals appear, stop adding Operations and reconsider the affected domain's design.
 
@@ -66,7 +68,9 @@ When several of the following signals appear, stop adding Operations and reconsi
 Do not hide a structural problem by only reorganizing Operation files.<br>
 First reconsider the affected domain boundary and ownership of shared processing.
 
-When shared invariants become the center of complexity, incrementally migrate only the affected domain<br>
+By keeping one invariant implementation in one place, Operation can provide part of the role of an Aggregate.<br>
+It does not structurally prevent callers from omitting it. When Operations continue to grow,<br>
+or when an omitted call itself is unacceptable, incrementally migrate only the affected domain<br>
 to DDD, aggregate-centered design, or another appropriate design.<br>
 Keeping the Handler-called Usecase allows the internal design to change without changing the external API.
 

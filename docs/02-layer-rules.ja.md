@@ -68,9 +68,10 @@ Handlerから直接呼ばれるUsecaseがトランザクション境界を確定
 Usecaseの長さではなく、1つの業務処理として上から下まで追えるかで判断します。<br>
 可読性と分割の考え方は、[設計原則](03-design-principles.ja.md)で説明します。
 
-複数のUsecaseで同じ処理を使う場合、DBを使わない判断や計算はPolicy、<br>
-ModuleやQueryを使う処理はOperationに置けます。どちらもUsecaseから呼び出し、<br>
-Handlerからは直接呼びません。HUMQの新しい層ではありません。
+同じ処理は、原則として各Usecaseに残します。複数のUsecaseで共有する純粋な判断や計算は、<br>
+Policyとして切り出せます。同じ不変条件を複数のUsecaseで守る必要があり、<br>
+実装の分岐を許容できない場合に限り、例外的にOperationを利用できます。<br>
+どちらもHUMQの新しい層ではなく、Usecaseの責務内に置く部品です。
 
 ## Policy
 
@@ -122,14 +123,12 @@ ModuleまたはQueryに置き、Policyを呼んで返品を登録する流れは
 
 ## Operation
 
-Operationは、複数のUsecaseで共有するDB依存の処理です。ModuleやQueryを利用できますが、<br>
-`begin`、`commit`、`rollback`は行いません。Handlerから直接呼ばず、Usecaseから利用します。
+OperationはHUMQの基本構造ではありません。業務フローは、原則としてUsecaseへ直接記述します。<br>
+同じ不変条件を複数のUsecaseで守る必要があり、<br>
+その実装が分岐すると具体的な不整合につながる場合だけ、DBに依存する処理をOperationとして共有できます。
 
-Usecaseから別のUsecaseを呼ぶ代わりに、共有する内部処理をOperationとして切り出します。
-
-認可、採番、重複確認、共通の事前条件、限定された複数テーブル更新などを、<br>
-複数Usecaseから同じ意味と規則で利用する場合にOperationを検討します。<br>
-DBを使わない処理はOperationではなくPolicyにします。
+OperationはModuleやQueryを利用できますが、`begin`、`commit`、`rollback`は行いません。<br>
+Handlerから直接呼ばず、Usecaseから利用します。
 
 ### Operationの配置と命名
 
@@ -167,9 +166,10 @@ Operationが増えて1ファイルでは読みづらくなった場合の分割�
 
 ### Operationへ抽出する基準
 
-Operationへ抽出するのは、複数Usecaseから実際に使われ、同じ業務上の意味と変更理由を持ち、<br>
-同じ検証、エラー、ロック、更新順序を共有する必要がある場合です。抽出後も、<br>
-主要なフローはUsecaseから追跡できなければなりません。
+Operationへ抽出するのは、複数Usecaseから実際に使われる同じ不変条件について、<br>
+検証、エラー、ロック、更新順序の実装が分岐することを許容できない場合です。<br>
+どの不変条件が破られ、どのような不整合が起こるかを説明できない場合は、Usecaseに残します。<br>
+抽出後も、主要なフローはUsecaseから追跡できなければなりません。
 
 ## Module
 

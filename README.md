@@ -98,6 +98,10 @@ It limits where chaos is absorbed and keeps the rest of the structure simple and
 It provides clearer placement rules than MVC + Service<br>
 and requires fewer design concepts than DDD centered on Aggregates and a rich Domain Model.
 
+In exchange for that lighter structure, each Usecase explicitly protects consistency across multiple tables.<br>
+Rather than protecting every domain with an Aggregate,<br>
+HUMQ treats domains that require structural protection as the exception.
+
 ## Target Applications
 
 Its primary target is applications that use a relational database as their main persistence model<br>

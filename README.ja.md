@@ -95,6 +95,10 @@ Handler、Usecase、Module、Queryの責務境界を固定し、業務が複雑�
 MVC + Serviceより配置規則を明確にし、Aggregateや豊かなDomain Modelを中心とするDDDよりも、<br>
 少ない設計概念で導入できます。
 
+その軽量さと引き換えに、複数テーブルの整合性は各Usecaseが明示的に守ります。<br>
+すべての領域をAggregateで保護するのではなく、<br>
+構造的な保護が必要な領域を例外として扱う設計です。
+
 ## 適用対象
 
 主な対象は、RDBを主要な永続化基盤とし、<br>

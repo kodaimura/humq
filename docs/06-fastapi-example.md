@@ -283,70 +283,10 @@ class ForgotPasswordUsecase:
 Database access, Module calls, `commit`, and email delivery do not move into Policy.<br>
 The Policy call and resulting branch remain visible in Usecase.
 
-## Operation
-
-Place database-backed business processing shared by multiple Usecases in the owning domain's `_operations.py` first.<br>
-See [Adoption Limits and Evolution](07-adoption-limits-and-evolution.md)<br>
-for splitting rules when it becomes difficult to read.<br>
-The following Operation retrieves an organization and member through Modules and verifies a shared authorization condition.
-
-```python
-# usecases/organizations/_operations.py
-
-class RequireOrganizationRoleOperation:
-    def __init__(self, db: Session):
-        self.organizations = OrganizationModule(db)
-        self.members = OrganizationMemberModule(db)
-
-    def run(
-        self,
-        *,
-        organization_id: int,
-        account_id: int,
-        allowed_roles: set[str],
-    ) -> None:
-        organization = self.organizations.get_by_id(organization_id)
-        if not organization:
-            raise AppError(code=ErrorCode.ORGANIZATION_NOT_FOUND)
-
-        member = self.members.get(
-            organization_id=organization_id,
-            account_id=account_id,
-        )
-        if not member or member.role not in allowed_roles:
-            raise AppError(code=ErrorCode.ACCESS_DENIED)
-```
-
-Usecase calls Operation explicitly within the primary flow and finalizes the transaction.
-
-```python
-# usecases/orders/confirm.py
-
-from app.usecases.organizations._operations import (
-    RequireOrganizationRoleOperation,
-)
-
-
-class ConfirmOrderUsecase:
-    def __init__(self, db: Session):
-        self.db = db
-        self.orders = OrderModule(db)
-        self.require_role = RequireOrganizationRoleOperation(db)
-
-    def execute(self, input):
-        order = self.orders.get_for_update(input.order_id)
-        self.require_role.run(
-            organization_id=order.seller_organization_id,
-            account_id=input.account_id,
-            allowed_roles={"ADMIN", "SALES"},
-        )
-        self.orders.confirm(order)
-        self.db.commit()
-        return order
-```
-
-Operation uses the same Session as its caller and routes every write through a Module.<br>
-Transaction finalization remains in Usecase.
+Keep database-backed processing directly in each Usecase by default.<br>
+Centralize it in an Operation only as an exception when multiple Usecases must preserve the same invariant<br>
+and allowing the implementation to diverge would cause a concrete inconsistency.<br>
+See [Consistency](04-consistency-and-transactions.md#when-the-same-invariant-repeats) for the criteria.
 
 ## Module
 

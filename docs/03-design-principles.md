@@ -44,8 +44,9 @@ not an unstructured giant function.
 
 ## Principle 3: Prefer Traceability to Reuse
 
-Processing shared by multiple Usecases may be extracted as Policy when it does not use the database,<br>
-or as Operation when it uses Module or Query.<br>
+Pure decisions and calculations shared by multiple Usecases may be extracted as Policy.<br>
+Database-backed processing remains in each Usecase by default and is shared as Operation only when<br>
+the implementation of the same invariant cannot be allowed to diverge.<br>
 In either case, the call and primary branch based on its result remain in Usecase.
 
 Two occurrences alone do not require sharing. HUMQ does not avoid reuse;<br>

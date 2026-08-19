@@ -11,7 +11,6 @@ and database transaction boundaries are Usecase responsibilities.
 ## Responsibilities
 
 - **Usecase**: Owns cross-table consistency, operation order, failure conditions, and transaction boundaries.
-- **Operation**: Uses Module or Query in the caller's Session to perform shared internal processing.
 - **Module**: By default, reads and writes one table and does not call `commit` or `rollback`.
 - **Query**: Is read-only and does not own transaction boundaries.
 - **Database**: Enforces database-expressible constraints and provides concurrency-control mechanisms.
@@ -79,12 +78,13 @@ It guarantees that the database state change and the delivery request are record
 
 ## When the Same Invariant Repeats
 
-When the same multi-table update runs from multiple Usecases<br>
-with identical validation, order, locking, and error handling, it may be shared as an Operation.
+Write business flows and consistency decisions directly in each Usecase by default.<br>
+When multiple Usecases must preserve the same invariant and allowing the implementation to diverge<br>
+would cause an inconsistency such as double-booking, negative stock, or a duplicate charge,<br>
+the processing may be shared as an Operation as an exception.
 
-A long Usecase, many Module calls, or similar-looking code does not require extraction.<br>
-Ask whether the processing has the same business meaning and reason to change,<br>
-and whether keeping it duplicated creates a real risk of missed changes.
+Operation is not a component for shortening Usecases or a general-purpose code-reuse mechanism.<br>
+If you cannot name the invariant and the concrete consequence of violating it, keep the processing in Usecase.
 
 Operation participates in the same Session as the calling Usecase and delegates every write to a Module.<br>
 It never calls `begin`, `commit`, or `rollback`; the calling Usecase still owns the transaction boundary.

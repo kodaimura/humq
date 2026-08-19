@@ -282,70 +282,10 @@ class ForgotPasswordUsecase:
 DBアクセス、Module呼び出し、`commit`、メール送信はPolicyへ移しません。<br>
 Policyの呼び出しと、その結果による分岐はUsecaseから確認できます。
 
-## Operation
-
-複数Usecaseで共有するDB依存の業務処理は、まず所有ドメインの`_operations.py`へ置きます。<br>
-増えて読みづらくなった場合の分割ルールは、<br>
-[適用限界と発展](07-adoption-limits-and-evolution.ja.md)で説明します。<br>
-次のOperationは、組織とメンバーをModuleから取得し、共通の認可条件を検証します。
-
-```python
-# usecases/organizations/_operations.py
-
-class RequireOrganizationRoleOperation:
-    def __init__(self, db: Session):
-        self.organizations = OrganizationModule(db)
-        self.members = OrganizationMemberModule(db)
-
-    def run(
-        self,
-        *,
-        organization_id: int,
-        account_id: int,
-        allowed_roles: set[str],
-    ) -> None:
-        organization = self.organizations.get_by_id(organization_id)
-        if not organization:
-            raise AppError(code=ErrorCode.ORGANIZATION_NOT_FOUND)
-
-        member = self.members.get(
-            organization_id=organization_id,
-            account_id=account_id,
-        )
-        if not member or member.role not in allowed_roles:
-            raise AppError(code=ErrorCode.ACCESS_DENIED)
-```
-
-UsecaseはOperationを主要なフローの中から明示的に呼び、トランザクションを確定します。
-
-```python
-# usecases/orders/confirm.py
-
-from app.usecases.organizations._operations import (
-    RequireOrganizationRoleOperation,
-)
-
-
-class ConfirmOrderUsecase:
-    def __init__(self, db: Session):
-        self.db = db
-        self.orders = OrderModule(db)
-        self.require_role = RequireOrganizationRoleOperation(db)
-
-    def execute(self, input):
-        order = self.orders.get_for_update(input.order_id)
-        self.require_role.run(
-            organization_id=order.seller_organization_id,
-            account_id=input.account_id,
-            allowed_roles={"ADMIN", "SALES"},
-        )
-        self.orders.confirm(order)
-        self.db.commit()
-        return order
-```
-
-Operationは呼び出し元と同じSessionを使い、書き込みは各Moduleを通します。<br>
-トランザクションの確定はUsecaseに残します。
+DBに依存する処理も、原則として各Usecaseへ直接記述します。<br>
+同じ不変条件を複数Usecaseで守り、その実装が分岐すると具体的な不整合につながる場合だけ、<br>
+例外的にOperationへ集約します。詳しい判断基準は、<br>
+[整合性の扱い](04-consistency-and-transactions.ja.md#同じ不変条件が繰り返される場合)で説明します。
 
 ## Module
 
