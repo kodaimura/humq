@@ -46,7 +46,7 @@ Usecaseは、説明可能な1つの業務処理と、その主要なフローを
 - ORMや生SQLによる直接的な読み取り
 - 通信方法やレスポンス解析など、外部クライアントの実装詳細
 - 無関係な複数の業務処理
-- 主要な業務フローを隠すServiceや補助処理
+- 主要な業務フローを追いにくくする無関係な共有処理や多段の呼び出し
 
 UsecaseはSQLAlchemyの`Session`を受け取り、ModuleやQueryとの間で、<br>
 ORMモデルを含む処理結果を受け渡せます。永続化方式から独立したDomain Entityや、<br>
@@ -62,121 +62,83 @@ Handlerから直接呼ばれるUsecaseがトランザクション境界を確定
 
 ### 1 Usecase = 1つの主要フロー
 
-主要な処理順序と分岐、利用するModuleとQuery、状態変更、<br>
-トランザクション境界、外部I/Oと失敗時の方針は、Usecaseファイルから読み取れる必要があります。
+処理の目的、主要な順序、結果による分岐、トランザクション境界、<br>
+外部I/Oと失敗時の方針は、Usecaseファイルから読み取れる必要があります。<br>
+すべての判断やModule操作をUsecaseファイルへ直接記述する必要はありません。<br>
+別ファイルに分離した場合、その処理が扱う検証、ロック、変更対象は、参照先から確認できるようにします。
 
 Usecaseの長さではなく、1つの業務処理として上から下まで追えるかで判断します。<br>
 可読性と分割の考え方は、[設計原則](03-design-principles.ja.md)で説明します。
 
-同じ処理は、原則として各Usecaseに残します。複数のUsecaseで共有する純粋な判断や計算は、<br>
-Policyとして切り出せます。同じ不変条件を複数のUsecaseで守る必要があり、<br>
-実装の分岐を許容できない場合に限り、例外的にOperationを利用できます。<br>
-どちらもHUMQの新しい層ではなく、Usecaseの責務内に置く部品です。
+業務上意味のある処理も、Usecaseファイルに置いたままで構いません。<br>
+必要に応じてUsecaseの責務の中で別ファイルへ分離できますが、<br>
+`policy`ファイルやクラスの作成はHUMQの必須規則ではありません。<br>
+共有されるかどうか、DBに依存するかどうかで分類しません。<br>
+新しい層や必須の抽象化を作る規則ではありません。
 
-## Policy
+## Usecase内部の業務処理
 
-Policyは、渡された値だけで判断や計算を行う処理です。DBにはアクセスしません。<br>
-関数で十分ならクラスを作る必要もありません。
+### 別ファイルへの分離を選ぶ場合
 
-Policyは次の条件をすべて満たします。
+価格決定、注文取消の可否、返品可能数、承認経路、操作権限、在庫引当など、<br>
+独立して説明・検証・変更する意味がある処理は、使用箇所が1つでも分離できます。<br>
+純粋な判断・計算のほか、DB情報を使った判断や、複数Moduleによる整合性処理も扱えます。<br>
+小さな局所的な判断だけでなく、独立した意味のある処理もUsecaseファイルに残せます。<br>
+行数や重複だけで分離を要求せず、主要なフローの追いやすさを見て利用側が選びます。
 
-- DB、Session、Module、Query、外部クライアントを使わない。
-- `begin`、`commit`、`rollback`、`flush`を行わない。
-- 同じ入力に対して同じ結果を返す。
-- 呼び出しと、その結果による主要な分岐をUsecaseから読み取れる。
+### 配置と命名
 
-### Policyの配置
-
-Policyと純粋な補助関数は、次の優先順位で配置します。
-
-1. 1つのUsecaseだけで使う判断や計算は、そのUsecaseファイル内に置く。
-2. 同一ドメインの複数Usecaseで共有する判断は、`usecases/<domain>/_policies.py`に置く。
-3. ドメインに依存せず全体で共有する純粋な計算だけを、`usecases/_policies.py`に置く。
-
-```text
-usecases/
-├── _policies.py
-├── procurement/
-│   ├── create_order.py
-│   ├── receive_goods.py
-│   └── _policies.py
-├── returns/
-│   ├── request_return.py
-│   ├── receive_return.py
-│   └── _policies.py
-└── billing/
-    ├── generate_invoice.py
-    ├── post_payment.py
-    └── _policies.py
-```
-
-先頭の`_`は、Handlerから直接使わない内部ファイルであることを示します。<br>
-`_policies.py`の関数や型は、ドメインの`__init__.py`から再exportしません。
-
-### Policyに置かないもの
-
-DBからのデータ取得、ModuleやQueryの呼び出し、データの更新、外部I/OはPolicyに置きません。<br>
-Usecaseを短く見せるためだけに、処理をPolicyへ移すことも避けます。
-
-例えば、返品可能数の算出式はPolicyに置けます。出荷数と過去の返品数の取得は、<br>
-ModuleまたはQueryに置き、Policyを呼んで返品を登録する流れはUsecaseに残します。
-
-## Operation
-
-OperationはHUMQの基本構造ではありません。業務フローは、原則としてUsecaseへ直接記述します。<br>
-同じ不変条件を複数のUsecaseで守る必要があり、<br>
-その実装が分岐すると具体的な不整合につながる場合だけ、DBに依存する処理をOperationとして共有できます。
-
-OperationはModuleやQueryを利用できますが、`begin`、`commit`、`rollback`は行いません。<br>
-Handlerから直接呼ばず、Usecaseから利用します。
-
-### Operationの配置と命名
-
-Operationは、まず所有ドメインの`usecases/<domain>/_operations.py`に置きます。<br>
-Operationが少ない間は、1つのファイルへまとめます。<br>
-クラス名は`*Operation`、メソッド名は`run()`を基本とし、公開Usecaseの`*Usecase`と`execute()`から区別します。
+業務ルールを別ファイルに切り出す場合は、所有領域の<br>
+`usecases/<domain>/_policies.py`を初期案として推奨します。<br>
+これは配置と命名の目安であり、Policyという必須の層・型や純粋性の条件ではありません。<br>
+使用箇所が1つの処理や、Module・Queryを通してDB情報を使う処理も含められます。<br>
+価格決定などを独立した名前で追う方が分かりやすければ、`_pricing.py`のように分けられます。<br>
+横断的なルールは、所有領域、独立した業務領域、まとまりのあるトップレベルの`policy/`など、<br>
+利用側がフォルダ構成を選べます。Usecaseごとのフォルダや専用の共有フォルダも、<br>
+HUMQが禁止・要求するものではありません。<br>
+どの配置でも、業務上の責任、依存方向、Usecaseからの参照先を説明できるようにします。<br>
+`policy/`はフォルダ名の一例であり、純粋処理とDBを使う処理を分ける必須分類ではありません。
+配置が変わってもUsecaseの責務と、以下のトランザクション・データアクセス規則は変わりません。
 
 ```text
 usecases/
-└── procurement/
-    ├── create_order.py
-    ├── receive_goods.py
-    ├── _policies.py
-    └── _operations.py
+├── orders/
+│   ├── cancel.py
+│   ├── _policies.py
+│   └── _pricing.py
+├── organizations/
+│   └── _authorization.py
+└── inventory/
+    └── _reservation.py
 ```
 
-先頭の`_`は内部モジュールであることを示します。`_operations.py`は`__init__.py`から再exportしません。<br>
-Operationが増えて1ファイルでは読みづらくなった場合の分割ルールは、<br>
-[適用限界と発展](07-adoption-limits-and-evolution.ja.md)で説明します。
+例えば、受注と出荷から利用する在庫引当をinventory領域へ置くこともできます。<br>
+この例の先頭の`_`は内部実装を示します。配置や命名によらずHandlerから直接呼ばず、<br>
+公開Usecaseとして再exportしません。<br>
+クラス化や特定のクラス名・メソッド名は必須ではありません。<br>
+配置を見直す目安は、[適用限界と発展](07-adoption-limits-and-evolution.ja.md)で説明します。
 
-### Operationのルール
+### DBを利用する処理の制約
 
-- 呼び出し元Usecaseと同じSessionを使用する。
-- ModuleとQueryを呼び出してよい。
-- 1つまたは複数のテーブルを読み書きしてよいが、書き込みは各Moduleを通す。
-- 必要な検証、ロック、`flush`を行ってよい。
-- `begin`、`commit`、`rollback`を行わない。
-- Handlerから直接呼び出さない。
-- 別のOperationを呼び出さない。
-- 外部クライアントの呼び出しと、複数Operationの組み合わせはUsecaseに残す。
-- 呼び出しと、結果による主要な分岐をUsecaseから読み取れるようにする。
-- 成功、失敗、呼び出し元による`rollback`をテストする。
+DBを利用する内部処理は、呼び出し元Usecaseと同じSessionを使い、<br>
+そのトランザクションに参加します。トランザクション境界は所有しません。
 
-外部I/Oと失敗時の方針、トランザクションの確定は、呼び出し元Usecaseに残します。
+- 内部処理で`begin`、`commit`、`rollback`を行わず、独自のSessionや独立したトランザクションを作らない。
+- 読み取りはModuleまたはQuery、書き込みはModuleを通す。
+- ORMやSQLを使って内部処理から直接データを取得・永続化しない。
+- 検証、ロック、変更対象は参照先で確認できるようにし、主要な結果と分岐はUsecaseから追えるようにする。
+- 外部システムとの通信やメール送信などの外部I/O、失敗時の方針、トランザクション境界はUsecaseに残す。
 
-### Operationへ抽出する基準
-
-Operationへ抽出するのは、複数Usecaseから実際に使われる同じ不変条件について、<br>
-検証、エラー、ロック、更新順序の実装が分岐することを許容できない場合です。<br>
-どの不変条件が破られ、どのような不整合が起こるかを説明できない場合は、Usecaseに残します。<br>
-抽出後も、主要なフローはUsecaseから追跡できなければなりません。
+純粋な処理にSessionを渡す必要はありません。<br>
+純粋な判断・計算は単体テストし、DBを利用する処理は整合性、失敗、<br>
+呼び出し元Usecaseによる`rollback`を含む振る舞いを検証します。
 
 ## Module
 
 Moduleは、原則として1テーブルの読み書きを扱います。
 
 そのため、正規化されたテーブル構造が複数のModule呼び出しとして、<br>
-Usecaseに現れることがあります。これは、抽象的なDomain境界よりも、<br>
+Usecaseまたは名前を付けた内部処理に現れることがあります。これは、抽象的なDomain境界よりも、<br>
 テーブルを変更するコードの所在を機械的に判断できることを優先した結果です。
 
 例外として、対象テーブルへの書き込みに別テーブルの情報が必要な場合は、<br>
@@ -202,6 +164,9 @@ SELECT、JOIN、サブクエリで参照できます。ただし、別テーブ�
 - 外部システムとの通信
 - ORMのcascade、hook、callbackによる別テーブルの暗黙的な書き込み
 
+在庫残数を負にしない更新の制約はModuleで守り、どの注文を優先して在庫を引き当てるかはUsecaseまたはその内部処理で判断します。<br>
+1テーブルの値だけで判断できることだけでは配置は決まらず、そのテーブルの状態・更新として守る制約か、操作の目的に応じた業務判断かを見ます。
+
 例えば、注文と注文明細を参照して請求書を作る処理は、<br>
 `InvoiceModule`が次のようなSQLを実行できます。
 
@@ -217,7 +182,8 @@ GROUP BY orders.id, orders.customer_id;
 この処理は`orders`と`order_items`を参照しますが、<br>
 状態を変更するのは`invoices`だけなので、`InvoiceModule`の責務に収まります。
 
-複数テーブルへの書き込みは、原則としてUsecaseが複数のModuleを呼び出して表現します。<br>
+複数テーブルへの書き込みは、原則としてUsecaseが直接または内部処理を通じて、<br>
+複数のModuleを呼び出して表現します。<br>
 単一SQLやストアドプロシージャによる複数テーブルへの書き込みを避けられない場合は、<br>
 通常規則に対する例外として、対象テーブルと理由を明記し、ADRと結合テストを残します。<br>
 この例外を汎用的なServiceへ拡張してはいけません。

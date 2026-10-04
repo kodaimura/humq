@@ -32,9 +32,10 @@ app/
 │   │   └── list.py
 │   ├── auth/
 │   │   ├── forgot_password.py
-│   │   └── _policies.py
+│   │   ├── _policies.py
+│   │   └── _token_issuance.py
 │   ├── organizations/
-│   │   └── _operations.py
+│   │   └── _authorization.py
 │   ├── orders/
 │   │   └── confirm.py
 ├── modules/
@@ -213,32 +214,46 @@ class CreateAccountUsecase:
         self.account_module = AccountModule(db)
 
     def execute(self, input: CreateAccountInput):
-        login_id = input.login_id or input.email
-        if login_id is None:
-            raise AppError(code=ErrorCode.LOGIN_ID_REQUIRED)
+        try:
+            login_id = input.login_id or input.email
+            if login_id is None:
+                raise AppError(code=ErrorCode.LOGIN_ID_REQUIRED)
 
-        if self.account_module.get_by_login_id(login_id):
-            raise AppError(code=ErrorCode.LOGIN_ID_ALREADY_EXISTS)
+            if self.account_module.get_by_login_id(login_id):
+                raise AppError(code=ErrorCode.LOGIN_ID_ALREADY_EXISTS)
 
-        account = self.account_module.create(
-            login_id=login_id,
-            email=input.email,
-            password_hash=hash_password(input.password),
-            first_name=input.first_name,
-            last_name=input.last_name,
-        )
+            account = self.account_module.create(
+                login_id=login_id,
+                email=input.email,
+                password_hash=hash_password(input.password),
+                first_name=input.first_name,
+                last_name=input.last_name,
+            )
 
-        self.db.commit()
-        return account
+            self.db.commit()
+            return account
+        except Exception:
+            self.db.rollback()
+            raise
 ```
 
-`commit`するのはUsecaseです。Moduleは`flush`によってSQLを実行できますが、<br>
-トランザクションの成功を確定しません。
+`commit`や失敗時の`rollback`など、トランザクション境界を所有するのはUsecaseです。<br>
+Moduleは`flush`によってSQLを実行できますが、トランザクションの成功を確定しません。
 
-## Policy
+## Usecaseの責務に属する業務処理
 
-Policyは、DBから必要な値を取得する処理ではなく、<br>
-Usecaseから渡された値だけで業務上の判断または計算を行います。
+この例では業務処理を別ファイルに分けますが、HUMQは分離を要求しません。<br>
+使用箇所が1つでも、独立して説明・検証・変更する意味がある処理は、<br>
+この例のように、所有する業務領域のUsecaseと同じディレクトリに分離できます。<br>
+業務ルールを切り出す場合は`_policies.py`を初期案として推奨しますが、<br>
+`_token_issuance.py`のような具体的な名前も使えます。<br>
+横断的なルールなどのフォルダ構成は、利用側が選べます。<br>
+小さな局所的判断はUsecase内に残せます。内部処理のクラス化は必須ではありません。<br>
+この例のファイル名では、先頭の`_`で内部実装を示します。<br>
+配置や命名によらず、Handlerから直接呼ばず、公開Usecaseとして再exportしません。<br>
+`_policies.py`は純粋な処理だけを置く分類でも、HUMQの別の層でもありません。
+
+発行可否の条件は、渡された値だけを使う純粋な処理として分離できます。
 
 ```python
 # usecases/auth/_policies.py
@@ -257,35 +272,87 @@ def can_issue_password_reset(
     )
 ```
 
-UsecaseがModuleから値を取得し、Policyの結果に基づいて状態を変更します。
+古いトークンを無効化して新しく作る詳細も、DBを使う一つの業務処理として分離できます。<br>
+呼び出し元Usecaseが同じSessionで作成したModuleを渡します。
+
+```python
+# usecases/auth/_token_issuance.py
+
+from app.modules.password_reset_token.module import PasswordResetTokenModule
+
+
+def issue_password_reset_token(tokens: PasswordResetTokenModule, account_id: int):
+    tokens.invalidate_active_tokens(account_id)
+    return tokens.create(account_id)
+```
+
+Usecaseには、対象アカウントのロック、発行不可の場合の扱い、トークン発行の呼び出し、<br>
+DB確定とメール送信の順序を示します。
 
 ```python
 # usecases/auth/forgot_password.py
 
+from sqlalchemy.orm import Session
+
+from app.error import AppError, ErrorCode
+from app.mailer import Mailer
+from app.modules.account.module import AccountModule
+from app.modules.password_reset_token.module import PasswordResetTokenModule
+from app.usecases.auth._policies import can_issue_password_reset
+from app.usecases.auth._token_issuance import issue_password_reset_token
+
+
 class ForgotPasswordUsecase:
+    def __init__(self, db: Session, mailer: Mailer):
+        self.db = db
+        self.accounts = AccountModule(db)
+        self.tokens = PasswordResetTokenModule(db)
+        self.mailer = mailer
+
     def execute(self, email: str):
-        account = self.accounts.get_by_email(email)
-        requests_today = self.tokens.count_created_today(account.id)
+        try:
+            account = self.accounts.get_by_email_for_update(email)
+            if account is None:
+                self.db.commit()
+                return
 
-        if not can_issue_password_reset(
-            account_is_active=account.is_active,
-            requests_today=requests_today,
-        ):
-            raise PasswordResetNotAllowed()
+            requests_today = self.tokens.count_created_today(account.id)
+            if not can_issue_password_reset(
+                account_is_active=account.is_active,
+                requests_today=requests_today,
+            ):
+                raise AppError(code=ErrorCode.PASSWORD_RESET_NOT_ALLOWED)
 
-        self.tokens.invalidate_active_tokens(account.id)
-        token = self.tokens.create(account.id)
-        self.db.commit()
+            token = issue_password_reset_token(self.tokens, account.id)
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+
         self.mailer.send_password_reset(account.email, token.value)
 ```
 
-DBアクセス、Module呼び出し、`commit`、メール送信はPolicyへ移しません。<br>
-Policyの呼び出しと、その結果による分岐はUsecaseから確認できます。
+内部処理はModule・Queryを通して読み取り、Moduleを通して書き込みます。<br>
+ORMやSQLで直接データを取得・永続化せず、独自のSession、`begin`、`commit`、`rollback`も持ちません。<br>
+純粋な発行可否判断にSessionを渡す必要はありません。トークン発行処理はUsecaseと同じSessionに参加し、<br>
+変更対象と呼び出すModuleの操作は`_token_issuance.py`から確認できます。
 
-DBに依存する処理も、原則として各Usecaseへ直接記述します。<br>
-同じ不変条件を複数Usecaseで守り、その実装が分岐すると具体的な不整合につながる場合だけ、<br>
-例外的にOperationへ集約します。詳しい判断基準は、<br>
-[整合性の扱い](04-consistency-and-transactions.ja.md#同じ不変条件が繰り返される場合)で説明します。
+この章では`PasswordResetTokenModule`の`count_created_today()`、<br>
+`invalidate_active_tokens()`、`create()`の実装を省略しています。<br>
+各Moduleは渡されたSessionを使い、対象テーブルの操作を提供し、`commit`しません。
+
+同時発行時の件数上限と有効トークンの整合性は、対象DBで行ロックが機能し、<br>
+すべての発行経路が同じアカウント行をロックすることを前提にしています。<br>
+このロックを件数確認より前に取得し、Usecaseの`commit`または`rollback`まで保持します。<br>
+行ロックを利用できないDBでは、Module内の条件付き更新やDB制約などで同等の同時実行制御が必要です。
+
+この例では、DB処理が失敗したらUsecaseが`rollback`し、メールは`commit`後に送ります。<br>
+送信が失敗すると例外が呼び出し元へ伝わりますが、確定済みのDB更新は戻りません。<br>
+再送や配信保証が必要なら、Usecaseの失敗時の方針としてOutboxなどを導入します。
+
+純粋な発行可否判断は入力と結果を単体テストできます。DBを使う発行処理は、<br>
+同じSession内で古いトークンの無効化と新しいトークンの作成が整合すること、途中の失敗、<br>
+呼び出し元Usecaseによる`rollback`をDBを使うテストで確認します。
 
 ## Module
 
@@ -329,12 +396,17 @@ class AccountModule:
         stmt = select(Account).where(Account.login_id == login_id)
         return self.db.scalars(stmt).first()
 
+    def get_by_email_for_update(self, email: str) -> Account | None:
+        stmt = select(Account).where(Account.email == email).with_for_update()
+        return self.db.scalars(stmt).first()
+
     def get_all(self) -> list[Account]:
         stmt = select(Account).order_by(Account.id)
         return list(self.db.scalars(stmt).all())
 ```
 
 AccountModuleは`account`テーブルだけを読み書きします。<br>
+`get_by_email_for_update()`は、パスワードリセット処理で対象行のロックが必要な読み取りです。<br>
 別のModuleを呼ばず、`commit`やResponse DTOへの変換も行いません。<br>
 DB操作には、`Session.query()`ではなくSQLAlchemy 2.xの`select()`と`scalars()`を使います。
 
@@ -422,17 +494,18 @@ class ListAccountSecurityUsecase:
 Queryはデータの読み方、Usecaseはアプリケーションが提供する操作を表します。<br>
 このUsecaseが薄いことは問題ではありません。
 
-## 複数Moduleと外部処理
+## 複数Moduleと外部I/O
 
 パスワードリセットでは、Usecaseが2つのModuleとMailerを次の順序で扱います。
 
 ```text
 ForgotPasswordUsecase
-  AccountModule.get_by_email()
-  PasswordResetTokenModule.invalidate_active_tokens()
-  PasswordResetTokenModule.create()
+  AccountModule.get_by_email_for_update()
+  PasswordResetTokenModule.count_created_today()
+  can_issue_password_reset()
+  issue_password_reset_token() → PasswordResetTokenModuleの無効化と発行
   db.commit()
-  Mailer.send()
+  Mailer.send_password_reset()
 ```
 
 DB更新を`commit`した後でメールを送るため、メール送信が失敗してもDB更新は戻りません。<br>

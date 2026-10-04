@@ -23,7 +23,7 @@ It is an adapter that hides communication with email providers, payment gateways
 | Reads spanning multiple tables | Query |
 
 Communication with external systems belongs in external clients called by Usecase.<br>
-Placement follows the operation target and type instead of a new interpretation of conceptual relatedness each time.
+Placement largely follows the operation target and type, reducing repeated judgments about conceptual relatedness.
 
 ## Dependencies
 
@@ -37,12 +37,15 @@ flowchart TD
 ```
 
 Handler calls only Usecase.<br>
-Usecase explicitly combines the Modules, Query code, and external clients it needs.<br>
+Usecase combines the Modules, Query code, and external clients needed for its primary flow.<br>
+Business processing may stay in Usecase; extracting it into a named internal file is optional.<br>
+If extracted, it handles details while remaining part of the Usecase responsibility.<br>
 Modules do not call each other, and Query neither writes nor manages transactions.
 
 ## Write and Read Flows
 
-For a business operation that updates multiple tables, Usecase calls Modules in order.
+For a business operation that updates multiple tables, Usecase calls Modules in order,<br>
+directly or through named internal business processing.
 
 ```text
 ConfirmOrderUsecase
@@ -51,8 +54,10 @@ ConfirmOrderUsecase
   OutboxModule.enqueue()            -> outbox
 ```
 
-Usecase shows which tables are updated, in what order,<br>
-and which operations share a transaction. Each Module changes only its corresponding table.
+In this direct-call example, Usecase shows the updated tables, their order,<br>
+and which operations share a transaction. With extracted processing, Usecase keeps the purpose<br>
+and primary order visible, while its referenced file shows the change targets.<br>
+Each Module changes only its corresponding table.
 
 For screens, searches, and reports that read multiple tables, Usecase calls Query.
 
@@ -69,8 +74,8 @@ Usecase represents the operation the application provides; Query represents how 
 
 - RDB tables are treated as stable, primary persistence boundaries.
 - Module is intentionally coupled to table structure.
-- A normalized table structure may appear in Usecase as multiple Module calls.
-- As the business becomes complex, Usecase may grow, but its primary flow remains readable from top to bottom.
+- A normalized table structure may appear as multiple Module calls in Usecase or its named internal processing.
+- As the business becomes complex, Usecase may grow or optionally delegate details to named internal processing, while its primary flow remains readable from top to bottom.
 - Cross-table consistency is not guaranteed automatically; it is protected explicitly through Usecase, database constraints, and tests.
 - Persistence-independent Domain Entities and conversion into DTOs are not required.
 - The directory structure for database connections, external integrations, observability, and the rest of the application is not prescribed.

@@ -4,8 +4,10 @@ Design principles define what HUMQ prioritizes when abstraction, reuse, and deco
 
 ## Principle 1: Keep Essential Complexity Visible
 
-Business-significant operation order, branches, state transitions, multi-table writes,<br>
-external I/O, and transaction boundaries remain visible from Usecase.
+The primary business flow remains visible from Usecase: its purpose, major operation order,<br>
+branches based on results, transaction boundaries, external I/O, and post-failure policy.<br>
+Detailed decisions and Module operations may live in clearly named internal processing,<br>
+where their validation, locking, and change targets can be inspected.
 
 ORM operations, SQL construction, communication mechanics, and local data conversion<br>
 may be hidden as implementation details inside Modules or external clients.<br>
@@ -22,7 +24,8 @@ A long Usecase is acceptable when one business operation can be explained by rea
 Allowing Usecase to grow does not mean giving up readability.<br>
 Organize operations into meaningful business stages and use clear names, early returns, and shallow nesting<br>
 so that the primary flow remains readable from top to bottom.<br>
-Local calculations may be extracted into helpers, but multi-Module operations and state changes must remain visible.
+Independently meaningful business processing may be extracted, including processing that combines Modules,<br>
+as long as Usecase still shows why it is called and what happens with its result.
 
 This does not allow unrelated business operations, shared mutable state,<br>
 or persistence implementation details that belong in Module to accumulate in Usecase.<br>
@@ -37,29 +40,32 @@ Consider a separate Usecase when the operation:
 - Forms an independent retry or compensation unit.
 - Is more naturally described as “and then, as a separate operation” in the original flow.
 
-Independent business operations, pure decisions or calculations, and input-format conversion<br>
+Independent business operations, internal decisions or consistency processing, and input-format conversion<br>
 may be separated when the primary flow remains traceable. Avoiding decomposition is not the goal;<br>
 keeping the primary flow visible is. HUMQ allows traceable local complexity,<br>
 not an unstructured giant function.
 
-## Principle 3: Prefer Traceability to Reuse
+## Principle 3: Prefer Business Meaning and Traceability to Reuse
 
-Pure decisions and calculations shared by multiple Usecases may be extracted as Policy.<br>
-Database-backed processing remains in each Usecase by default and is shared as Operation only when<br>
-the implementation of the same invariant cannot be allowed to diverge.<br>
-In either case, the call and primary branch based on its result remain in Usecase.
+An independently meaningful business decision or process may be extracted even when only one Usecase calls it.<br>
+Pure calculations, database-informed decisions, and multi-Module consistency processing follow this same criterion.<br>
+Extraction is optional even when the processing has independent business meaning or multiple callers.<br>
+When extracted, the call and primary branch based on its result remain in Usecase.
 
-Two occurrences alone do not require sharing. HUMQ does not avoid reuse;<br>
-it avoids reuse that obscures where the business flow lives.
+Two occurrences alone do not require sharing, and line count alone does not require extraction.<br>
+HUMQ favors a clear business reason to change and a traceable flow over reuse for its own sake.
 
-## Principle 4: Prefer Mechanical Boundaries to Judgment-Dependent Boundaries
+## Principle 4: Use Clear Boundaries to Reduce Placement Decisions
 
 Decisions such as "these things are related," "this is used only by this screen," or "this belongs near the Domain"<br>
 may all be reasonable, but their conclusions change with the person and situation.
 
 HUMQ fixes input and output for the caller in Handler, business flows in Usecase,<br>
 one-table reads and writes in Module by default, and cross-table reads in Query.<br>
-It prioritizes consistent placement across developers over making every individual boundary locally elegant.
+These rules reduce placement decisions and make code easier to find; they do not eliminate judgment.<br>
+Usecase granularity, the Module–Query boundary, and whether to extract internal processing still require design decisions.<br>
+Teams also choose where cross-domain internal processing lives; an owning domain is a useful default,<br>
+but a cohesive shared package can serve the same Usecase responsibility.
 
 ## Principle 5: Bugs Can Be Fixed. Distortion Eventually Becomes Unmanageable.
 
