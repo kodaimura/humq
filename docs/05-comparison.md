@@ -1,6 +1,6 @@
 # Comparison with Existing Architectures and Design Patterns
 
-HUMQ provides clearer code placement than MVC + Service<br>
+HUMQ provides specific placement conventions for familiar patterns<br>
 and uses fewer design concepts than aggregate-centered DDD, making it a lightweight application architecture.<br>
 In exchange, it does not structurally protect cross-table consistency inside a Domain Model;<br>
 each Usecase is responsible for implementing it.
@@ -29,7 +29,7 @@ The sections below focus on the perspectives where each architecture differs mos
 
 | Design | Primary optimization target | Basis of boundaries | Main tradeoff |
 | --- | --- | --- | --- |
-| MVC + Service | Separation of concerns and<br>structural flexibility | Roles such as Controller, Model, and Service<br>defined by the team | The same behavior can have<br>several reasonable locations |
+| MVC + Service | Separation of concerns and<br>structural flexibility | Roles such as Controller, Model, and Service<br>defined by the team, possibly with detailed conventions | Predictability depends on the<br>conventions the team adopts |
 | HUMQ | Predictable placement and<br>traceable business flows | Usecase flow, a one-table Module by default,<br>and cross-table Query | Cross-table consistency depends<br>on Usecase implementation |
 | Aggregate-centered DDD | Protection of invariants and business<br>concepts through a Domain Model | Bounded Contexts, Aggregates,<br>Entities, Value Objects, and related concepts | Continuous modeling and shared<br>design judgment about boundaries |
 
@@ -47,11 +47,11 @@ and prioritizes predictable placement and traceable business flows over domain m
 Suppose confirming an order must finalize its line-item amounts, reflect their sum in the order total,<br>
 and mark the order as confirmed.
 
-- **MVC + Service** leaves the team to decide whether Controller, Model, or Service coordinates the processing.<br>
-  This provides structural flexibility, but placement decisions may differ across developers.
-- **HUMQ** makes `ConfirmOrderUsecase` call `OrderItemModule` and `OrderModule` explicitly.<br>
-  The code to inspect is predictable,<br>
-  but omitting a required Module call can omit a consistency rule.
+- **MVC + Service** lets the team decide whether Controller, Model, or Service coordinates the processing.<br>
+  Clear team conventions can make this decision consistent across developers.
+- **HUMQ** makes `ConfirmOrderUsecase` show the line-item and order steps, calling their Modules<br>
+  directly or through named internal processing. The code to inspect is predictable,<br>
+  but omitting a required step can omit a consistency rule.
 - **Aggregate-centered DDD** places the invariants of the order and its line items in an Order Aggregate,<br>
   making invalid updates harder to create. In exchange, the Aggregate boundary must be designed,<br>
   and the model and implementation must be kept aligned over time.
@@ -59,24 +59,30 @@ and mark the order as confirmed.
   It does not by itself determine where data access or cross-table reads belong.
 
 The difference is not whether each design can implement the business operation.<br>
-MVC + Service prioritizes structural flexibility, Transaction Script prioritizes procedural traceability,<br>
-HUMQ combines traceability with consistent placement, and aggregate-centered DDD prioritizes structural protection of invariants.
+MVC + Service offers structural flexibility and may establish its own conventions,<br>
+Transaction Script prioritizes procedural traceability, HUMQ supplies a particular combination of traceability<br>
+and placement rules, and aggregate-centered DDD prioritizes structural protection of invariants.
 
 ## MVC + Service / Layered Architecture
 
 MVC + Service and layered architecture separate input/output, business processing, and data access.<br>
 They are widely understood, flexible designs whose layer granularity can be adjusted to a system's scale and characteristics.
 
-However, the team chooses Service granularity, Model behavior, Repository responsibilities,<br>
-and transaction ownership.<br>
-Several reasonable answers may exist for whether the same behavior belongs in Controller, Model, or Service.
+The team chooses Service granularity, Model behavior, Repository responsibilities,<br>
+dependency direction, and transaction ownership.<br>
+A team can define clear responsibility, dependency, and transaction conventions within MVC + Service,<br>
+achieving predictable placement and traceable flows. Without those conventions, several reasonable<br>
+answers may exist for whether the same behavior belongs in Controller, Model, or Service.
 
 HUMQ removes the generic Service role and fixes caller input/output in Handler, business flow in Usecase,<br>
 one-table reads and writes in Module by default, and cross-table reads in Query.<br>
-It gives up some flexibility to keep placement stable across developers.
+Its defaults reduce placement decisions while leaving judgment about Usecase granularity,<br>
+the Module–Query boundary, extraction of internal processing, and placement of cross-domain rules.
 
 HUMQ's value is not inventing new concepts.<br>
-It selects the minimum needed from existing implementation patterns and reduces placement decisions.
+It selects, combines, and codifies existing implementation patterns to reduce placement decisions.<br>
+The [sample implementation](https://github.com/kodaimura/humq-sample) shows that this structure can be built;<br>
+it does not establish a long-term maintenance benefit or superiority over an alternative with clear conventions.
 
 ## Clean Architecture
 
@@ -88,7 +94,7 @@ It still leaves decisions such as whether an individual rule belongs in Entity o
 and how large a Usecase or Port should be.<br>
 Correct dependencies do not make code placement unique.
 
-HUMQ additionally fixes operation targets and code placement.<br>
+HUMQ additionally sets defaults for operation targets and code placement.<br>
 Clean Architecture values keeping Domain and Usecase independent of ORMs, Web frameworks,<br>
 databases, and other external details. HUMQ does not require that independence<br>
 and allows Usecase to handle Sessions and ORM models.
@@ -115,8 +121,8 @@ it is a different choice that prioritizes predictable placement over protection 
 
 Designing every domain around rich Aggregates from the beginning adds the continuing cost of modeling<br>
 and maintaining boundaries even where invariants are simple. HUMQ starts with a lightweight structure.<br>
-Only when multiple Usecases must preserve the same invariant should centralizing it<br>
-in an Operation be considered as an exception.<br>
+Independently meaningful business processing can be placed in a named internal file,<br>
+even when used by one Usecase. It remains under the Usecase responsibility and transaction boundary.<br>
 When complex shared invariants become central to the domain, aggregate-centered design is a better fit.
 
 ## Transaction Script
@@ -129,7 +135,7 @@ or how transaction boundaries are expressed.<br>
 If each Script accesses the database directly or begins choosing different Gateways or Repositories,<br>
 lower-level responsibilities and consistency handling can diverge.
 
-HUMQ adds mechanical boundaries to Transaction Script: `1 Usecase = 1 Primary Flow`,<br>
+HUMQ adds placement boundaries to Transaction Script: `1 Usecase = 1 Primary Flow`,<br>
 `Module = one-table reads and writes by default`, and `Query = cross-table reads`,<br>
 with transaction boundaries made explicit in Usecase.<br>
 It keeps the procedural nature of Usecase visible while making lower-level parts simple and predictable.
@@ -177,12 +183,12 @@ and handle multi-table state changes along with cross-table reads for screens, s
 - Multi-table operations keep accumulating branches, special cases, and temporary measures.
 - Lists, searches, and reports frequently read across multiple tables.
 - Multiple people maintain the system over time and want fewer decisions about code placement.
-- Most business rules are tied to individual Usecases rather than sharing the same invariant across many operations.
+- The team benefits from tracing each operation's primary flow from Usecase, including named internal processing when appropriate.
 
-With HUMQ, business flows, state transitions, and transaction boundaries are easier to trace from Usecase,<br>
-while the impact of a one-table operation and the code to inspect during change become more predictable.<br>
-As a secondary benefit, the context needed to understand one change stays bounded,<br>
-which also helps AI agents identify what to inspect.
+HUMQ's conventions aim to make business flows, state transitions, and transaction boundaries<br>
+easier to trace from Usecase, and to make the impact of a one-table operation more predictable.<br>
+They may also bound the context needed to understand one change,<br>
+which can help AI agents identify what to inspect.
 
 ### Where HUMQ Adds Little Value
 
@@ -197,7 +203,7 @@ and a simpler MVC or layered architecture may be sufficient.
 
 - Usecase tends to grow because it concentrates business flow and consistency decisions.
 - Because Module is coupled to table structure, schema changes affect boundaries and naming.
-- A normalized table structure appears in Usecase as multiple Module calls.
+- A normalized table structure appears as multiple Module calls in Usecase or its internal processing.
 - Cross-table consistency depends on Usecase implementation, so an omitted rule can produce inconsistent data.
 
 HUMQ does not assume that consistency is unimportant.<br>
@@ -209,7 +215,7 @@ as the tradeoff for lightweight and explicit placement rules.
 Database constraints and tests reduce that risk, but do not make consistency enforcement complete by construction.<br>
 When that risk is unacceptable, choose another design that structurally protects the requirement.
 
-Schema complexity becoming visible in Usecase is an intentional HUMQ tradeoff.<br>
+Schema complexity remaining traceable from Usecase and its named internal processing is an intentional HUMQ tradeoff.<br>
 HUMQ prioritizes a mechanical answer to “where is the code that changes this table?”<br>
 over hiding the table structure behind abstract Domain boundaries.
 
@@ -225,13 +231,13 @@ over hiding the table structure behind abstract Domain boundaries.
 ### What HUMQ Requires
 
 - Keep each Usecase focused on one business purpose that can be explained from top to bottom.
-- Make business flow, cross-table consistency, transaction boundaries, and external I/O explicit in Usecase.
-- Keep Module within one-table reads and writes by default, Query read-only, and Handler limited to external input and output.
+- Keep the primary business flow, transaction boundaries, external I/O, and failure policy visible in Usecase; if processing is extracted, keep it traceable by name.
+- Keep Module within one-table reads and writes by default, Query read-only, and Handler limited to caller input and output.
 - Enforce database-expressible constraints in the database, and test the consistency and `rollback` behavior owned by Usecase.
-- Use Operation only when the implementation of the same invariant cannot be allowed to diverge.
+- Keep business processing under Usecase responsibility. Extraction is optional even for independently meaningful processing or multiple callers; if extracted, use Module and Query for database access and leave the transaction boundary in the calling Usecase.
 
 HUMQ's mechanical boundaries do not automatically guarantee business correctness.<br>
-They fix where correctness is implemented and verified.
+They define where correctness is implemented and verified, while leaving the design judgments noted above.
 
 ---
 

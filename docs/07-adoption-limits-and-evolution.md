@@ -1,77 +1,72 @@
 # Adoption Limits and Evolution
 
-HUMQ's adoption limit is not determined by table count, Usecase count, or lines of code alone.<br>
-Judge whether primary business flows remain traceable from Usecase and shared processing remains supportive.
+HUMQ's adoption limit is not determined by table count, Usecase count, internal-file count, or lines of code alone.<br>
+Judge whether primary business flows remain traceable from Usecase and any extracted processing still supports them.
 
-Operation is an exception used only when the implementation of the same invariant cannot be allowed to diverge.<br>
-One Operation does not itself mark the adoption limit, but growing numbers of them are a signal to revisit the design.
+Internal processing is part of the Usecase responsibility, not an exceptional extra layer.<br>
+If it grows, check ownership and readability rather than setting a numerical limit.
 
-## Before Sharing Processing
+## Before Extracting Processing
 
-Similar processing, a long Usecase, or many Module calls alone do not require sharing.
+A long Usecase, similar code, or many Module calls alone do not require extraction.<br>
+Separating a policy or other business processing into a file is optional.<br>
+When considering it, ask whether the processing has an independent business meaning worth explaining, verifying, and changing.<br>
+Pricing, cancellation eligibility, returnable quantity, approval routing, authorization,<br>
+and inventory reservation may meet this criterion even with one caller.
 
-Before extracting an Operation, verify that it:
+Independent business meaning makes extraction possible, not mandatory.<br>
+Small local decisions may remain in Usecase. After extraction, its purpose and the primary branch<br>
+based on its result must still be visible in Usecase. Whether the processing uses the database<br>
+affects how it is implemented and tested, not whether it may be extracted.
 
-- Is genuinely used by multiple Usecases.
-- Protects the same invariant and cannot be allowed to diverge.
-- Has a concrete inconsistency that can be named as the consequence of violating the invariant.
-- Must share the same validation, errors, locking, and update order.
-- Leaves the primary flow traceable from Usecase after extraction.
+## Placement as a Domain Grows
 
-When these conditions are not met, duplication is an intentional choice that protects traceability.
-
-## Use Operation as an Exception
-
-Place the processing in the owning domain's `_operations.py` only when the criteria above are satisfied.<br>
-When one file becomes difficult to read, split it into multiple files directly under the same domain,<br>
-grouped by business capability or reason to change.
+If processing is extracted, one starting point is to place files named for business meaning<br>
+directly in the owning domain's Usecase directory:
 
 ```text
 usecases/
-└── procurement/
-    ├── create_order.py
-    ├── receive_goods.py
-    ├── _policies.py
-    ├── _reservation_operations.py
-    └── _billing_operations.py
+├── orders/
+│   ├── cancel.py
+│   ├── _cancellation.py
+│   └── _pricing.py
+└── inventory/
+    └── _reservation.py
 ```
 
-Use `_<business-capability>_operations.py` as the naming pattern.<br>
-Do not group files by generic or technical categories such as `_helpers.py`, `_common_operations.py`,<br>
-`_database_operations.py`, or `_misc_operations.py`, and do not split mechanically into one file per class.
+For cross-domain rules, teams can use an existing owning domain, define a domain for the business capability,<br>
+or choose a cohesive top-level `policy/` or other shared package. HUMQ does not prescribe one layout.<br>
+For example, inventory can own reservation used by both orders and shipping.<br>
+Shared use alone does not make unrelated processing a coherent package.
 
-After splitting, the owning domain must remain clear, references must be easier to trace from Usecase,<br>
-and the primary flow must remain visible. Do not re-export Operation files through `__init__.py`,<br>
-and do not create root-level `usecases/_operations.py` or `usecases/<domain>/operations/`.<br>
-Even when several domains use it, Operation remains in the domain that owns the business capability.
+A folder per Usecase or a shared folder for internal processing is a project choice.<br>
+Keep the primary flow traceable and avoid a catch-all of unrelated rules.<br>
+If files in one domain become difficult to scan, a folder within that domain may help.
 
-See [Layer Rules](02-layer-rules.md#operation) for Operation placement and rules.
+For an extracted file, use a business rule or processing name, normally `_<business-rule>.py`.<br>
+No class or method naming pattern is required. Do not expose an internal file as a public Usecase.<br>
+See [Layer Rules](02-layer-rules.md#internal-business-processing) for data access and transaction rules.
 
-## Use Operation Growth as an Adoption-Limit Guide
+## Signals to Revisit the Design
 
-Lines or file count alone do not set a limit, but Operation is an exception;<br>
-do not treat its growth as normal. Even when splitting Operations across files for readability,<br>
-verify that they remain supportive of the primary flow in Usecase.
+When several of the following appear, reconsider ownership and boundaries before adding more indirection:
 
-When several of the following signals appear, stop adding Operations and reconsider the affected domain's design.
-
-- The owning domain or reason to change for an Operation cannot be explained.
-- Unrelated shared processing accumulates into a de facto generic Service.
-- Calls or dependency chains among Operations must be traced.
-- Many Usecases do little more than call Operations in order and then `commit`.
-- Primary business flows or branches move from Usecase into Operations.
+- The business owner or reason to change for an internal file cannot be explained.
+- Unrelated processing accumulates in generic shared files.
+- Many layers of internal calls or cyclic cross-domain dependencies make the flow hard to follow.
+- Usecases do little more than call internal processing in order and then `commit`.
+- Primary branches, transaction boundaries, or external I/O disappear from Usecase.
 - Many tables must always be treated as one consistency boundary.
 - Protecting the same complex shared invariants becomes central to the domain.
 
+These are design signals, not a file-count threshold. Reorganizing files can improve scanning,<br>
+but it cannot resolve unclear ownership or a hidden business flow by itself.
+
 ## At the Adoption Limit
 
-Do not hide a structural problem by only reorganizing Operation files.<br>
-First reconsider the affected domain boundary and ownership of shared processing.
-
-By keeping one invariant implementation in one place, Operation can provide part of the role of an Aggregate.<br>
-It prevents divergence and partial-update omissions across Usecases. When Operations continue to grow,<br>
-or complex shared invariants become central to the affected domain, incrementally migrate only that domain<br>
-to DDD, aggregate-centered design, or another appropriate design.<br>
+First reconsider the affected domain boundary and ownership of business processing.<br>
+If complex shared invariants are central to that domain, incrementally adopt DDD,<br>
+aggregate-centered design, or another appropriate design for that domain.<br>
 Keeping the Handler-called Usecase allows the internal design to change without changing the external API.
 
 ---

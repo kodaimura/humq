@@ -7,8 +7,8 @@
 For applications centered on a relational database, HUMQ assigns<br>
 caller input and output to Handler, business flows and transactions to Usecase,<br>
 one-table reads and writes to Module by default, and cross-table reads to Query.<br>
-Instead of splitting complexity into abstractions that hide it,<br>
-HUMQ keeps that complexity traceable from Usecase.
+Usecase keeps the primary business flow visible. When details are extracted,<br>
+named processing within its responsibility lets readers trace business decisions and state changes.
 
 > **Bugs can be fixed. Distortion eventually becomes unmanageable.**
 
@@ -21,7 +21,7 @@ HUMQ calls this state, in which the placement of complexity has broken down, "di
 HUMQ does not eliminate chaos. It allows necessary chaos within order<br>
 and prevents structural distortion by using responsibility boundaries to limit where it belongs and how far its effects may spread.
 
-> **The structure—not the individual developer—decides where code belongs.**
+> **The structure narrows placement decisions and makes code easier to find.**
 
 ## How a Structure Becomes Distorted
 
@@ -54,7 +54,8 @@ Distortion arises not only from wrong decisions, but when multiple reasonable de
 
 ### MVC + Service
 
-MVC + Service separates responsibilities but does not define one exclusive home for business logic.
+MVC + Service separates responsibilities. Teams can also establish clear conventions for<br>
+business logic, dependencies, and transactions within that structure.
 
 For example, even the single requirement "Cancel a confirmed order from the administration screen"<br>
 can lead to different decisions depending on which aspect the developer emphasizes.
@@ -64,8 +65,9 @@ can lead to different decisions depending on which aspect the developer emphasiz
 - Put it in Service because it also coordinates inventory restoration and notification.
 
 Each decision has a rationale.<br>
-MVC + Service alone does not determine which aspect should take priority as the placement criterion.<br>
-When developers choose different criteria, the same business flow becomes distributed across multiple layers.
+Without those conventions, MVC + Service alone does not determine which aspect should take priority<br>
+as the placement criterion. When developers choose different criteria, the same business flow<br>
+can become distributed across multiple layers.
 
 ### Aggregate-Centered DDD
 
@@ -80,8 +82,9 @@ It still leaves decisions such as whether a rule belongs in Entity or Usecase, a
 Dependencies can remain correct while differing decisions make code placement vary between developers.
 
 HUMQ does not reject these designs.<br>
-For relational-database-centered applications, it replaces some human placement decisions with mechanical responsibility boundaries<br>
-so code placement remains stable as people change.
+For relational-database-centered applications, it uses explicit responsibility boundaries<br>
+to reduce placement decisions and make the location of processing easier to predict.<br>
+Usecase size, the Module and Query boundary, and when to extract internal processing still require judgment.
 
 ## HUMQ's Solution
 
@@ -89,10 +92,15 @@ HUMQ is a lightweight architecture for RDB-centered applications<br>
 that reduces the decisions developers must make about code placement.
 
 It fixes the responsibility boundaries of Handler, Usecase, Module, and Query,<br>
-so where code belongs and where a change should be traced remain stable as the business grows more complex.<br>
+so where code belongs and where a change should be traced remain predictable as the business grows more complex.<br>
+Business processing may stay in Usecase. Separating it into a policy or other clearly named internal file is optional,<br>
+even when it merits independent explanation, verification, or change and only one Usecase uses it.<br>
+An owning domain is a useful default for placement; teams choose where cross-domain processing is easiest to own and find.<br>
+The Usecase retains the purpose, main order, result branches, transaction boundaries, and external I/O policy.<br>
+Database-using internal processing joins the calling Usecase's Session and does not own a transaction boundary.<br>
 It limits where chaos is absorbed and keeps the rest of the structure simple and predictable.
 
-It provides clearer placement rules than MVC + Service<br>
+It fixes more placement boundaries than MVC + Service does by itself<br>
 and requires fewer design concepts than DDD centered on Aggregates and a rich Domain Model.
 
 In exchange for that lighter structure, each Usecase explicitly protects consistency across multiple tables.<br>

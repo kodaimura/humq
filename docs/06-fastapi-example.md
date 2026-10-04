@@ -32,9 +32,10 @@ app/
 │   │   └── list.py
 │   ├── auth/
 │   │   ├── forgot_password.py
-│   │   └── _policies.py
+│   │   ├── _reset_eligibility.py
+│   │   └── _token_issuance.py
 │   ├── organizations/
-│   │   └── _operations.py
+│   │   └── _authorization.py
 │   ├── orders/
 │   │   └── confirm.py
 ├── modules/
@@ -214,35 +215,45 @@ class CreateAccountUsecase:
         self.account_module = AccountModule(db)
 
     def execute(self, input: CreateAccountInput):
-        login_id = input.login_id or input.email
-        if login_id is None:
-            raise AppError(code=ErrorCode.LOGIN_ID_REQUIRED)
+        try:
+            login_id = input.login_id or input.email
+            if login_id is None:
+                raise AppError(code=ErrorCode.LOGIN_ID_REQUIRED)
 
-        if self.account_module.get_by_login_id(login_id):
-            raise AppError(code=ErrorCode.LOGIN_ID_ALREADY_EXISTS)
+            if self.account_module.get_by_login_id(login_id):
+                raise AppError(code=ErrorCode.LOGIN_ID_ALREADY_EXISTS)
 
-        account = self.account_module.create(
-            login_id=login_id,
-            email=input.email,
-            password_hash=hash_password(input.password),
-            first_name=input.first_name,
-            last_name=input.last_name,
-        )
+            account = self.account_module.create(
+                login_id=login_id,
+                email=input.email,
+                password_hash=hash_password(input.password),
+                first_name=input.first_name,
+                last_name=input.last_name,
+            )
 
-        self.db.commit()
-        return account
+            self.db.commit()
+            return account
+        except Exception:
+            self.db.rollback()
+            raise
 ```
 
-Only Usecase calls `commit`. Module may execute SQL through `flush`,<br>
-but it does not finalize the successful transaction.
+Usecase owns transaction boundaries such as `commit` and `rollback` on failure.<br>
+Module may execute SQL through `flush`, but it does not finalize the successful transaction.
 
-## Policy
+## Business Processing Within the Usecase Responsibility
 
-Policy does not retrieve required values from the database.<br>
-It makes a business decision or calculation only from values supplied by Usecase.
+Even when used by just one Usecase, processing that is meaningful to explain, verify, and change independently<br>
+may be placed beside the Usecases in its owning business domain, in a file named for its business meaning.<br>
+These two internal files illustrate an optional choice; the decisions and Module calls may instead stay in the Usecase.<br>
+This is an example location; HUMQ leaves the placement of cross-domain processing to each project.<br>
+Small local decisions may remain in Usecase. Internal processing does not require a class.
+The leading `_` marks internal implementation; Handler does not call it directly, and it is not re-exported as a public Usecase.
+
+The following eligibility decision is pure and uses only supplied values.
 
 ```python
-# usecases/auth/_policies.py
+# usecases/auth/_reset_eligibility.py
 
 MAX_PASSWORD_RESET_REQUESTS_PER_DAY = 3
 
@@ -258,35 +269,88 @@ def can_issue_password_reset(
     )
 ```
 
-Usecase retrieves values through Modules and changes state based on the Policy result.
+Invalidating old tokens and issuing a new one can also be extracted as one database-backed business process.<br>
+The calling Usecase supplies a Module created with the same Session.
+
+```python
+# usecases/auth/_token_issuance.py
+
+from app.modules.password_reset_token.module import PasswordResetTokenModule
+
+
+def issue_password_reset_token(tokens: PasswordResetTokenModule, account_id: int):
+    tokens.invalidate_active_tokens(account_id)
+    return tokens.create(account_id)
+```
+
+Usecase shows the account lock, the branch based on the decision, the issuance call,<br>
+the transaction boundary, and the order of email delivery.
 
 ```python
 # usecases/auth/forgot_password.py
 
+from sqlalchemy.orm import Session
+
+from app.error import AppError, ErrorCode
+from app.mailer import Mailer
+from app.modules.account.module import AccountModule
+from app.modules.password_reset_token.module import PasswordResetTokenModule
+from app.usecases.auth._reset_eligibility import can_issue_password_reset
+from app.usecases.auth._token_issuance import issue_password_reset_token
+
+
 class ForgotPasswordUsecase:
+    def __init__(self, db: Session, mailer: Mailer):
+        self.db = db
+        self.accounts = AccountModule(db)
+        self.tokens = PasswordResetTokenModule(db)
+        self.mailer = mailer
+
     def execute(self, email: str):
-        account = self.accounts.get_by_email(email)
-        requests_today = self.tokens.count_created_today(account.id)
+        try:
+            account = self.accounts.get_by_email_for_update(email)
+            if account is None:
+                self.db.commit()
+                return
 
-        if not can_issue_password_reset(
-            account_is_active=account.is_active,
-            requests_today=requests_today,
-        ):
-            raise PasswordResetNotAllowed()
+            requests_today = self.tokens.count_created_today(account.id)
+            if not can_issue_password_reset(
+                account_is_active=account.is_active,
+                requests_today=requests_today,
+            ):
+                raise AppError(code=ErrorCode.PASSWORD_RESET_NOT_ALLOWED)
 
-        self.tokens.invalidate_active_tokens(account.id)
-        token = self.tokens.create(account.id)
-        self.db.commit()
+            token = issue_password_reset_token(self.tokens, account.id)
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+
         self.mailer.send_password_reset(account.email, token.value)
 ```
 
-Database access, Module calls, `commit`, and email delivery do not move into Policy.<br>
-The Policy call and resulting branch remain visible in Usecase.
+Internal processing reads through Module or Query and writes through Module.<br>
+It does not retrieve or persist data directly with ORM or SQL, create a separate Session,<br>
+or call `begin`, `commit`, or `rollback`. The pure eligibility decision does not need Session.<br>
+Token issuance participates in the calling Usecase's Session; its change targets and Module calls are visible in `_token_issuance.py`.
 
-Keep database-backed processing directly in each Usecase by default.<br>
-Centralize it in an Operation only as an exception when multiple Usecases must preserve the same invariant<br>
-and allowing the implementation to diverge would cause a concrete inconsistency.<br>
-See [Consistency](04-consistency-and-transactions.md#when-the-same-invariant-repeats) for the criteria.
+This chapter omits the implementations of `PasswordResetTokenModule.count_created_today()`,<br>
+`invalidate_active_tokens()`, and `create()`.<br>
+Each Module uses the supplied Session for operations on its target table and does not `commit`.
+
+The request limit and active-token consistency during concurrent issuance assume a database that honors row locks<br>
+and that every issuance path locks the same account row. The lock is acquired before counting requests<br>
+and held until the Usecase calls `commit` or `rollback`.<br>
+If the database does not support row locks, Module needs equivalent concurrency control such as<br>
+conditional updates or database constraints.
+
+Here, Usecase calls `rollback` if database processing fails and sends email after `commit`.<br>
+A delivery failure propagates to the caller, but does not undo the committed database change.<br>
+If retries or delivery guarantees are needed, the Usecase's failure policy can introduce Outbox or a similar pattern.
+
+Test the pure eligibility decision with input and output unit tests. For database-backed issuance,<br>
+use database tests to check that invalidating old tokens and creating the new one remain consistent in the same Session,<br>
+including mid-process failure and `rollback` by the calling Usecase.
 
 ## Module
 
@@ -330,12 +394,17 @@ class AccountModule:
         stmt = select(Account).where(Account.login_id == login_id)
         return self.db.scalars(stmt).first()
 
+    def get_by_email_for_update(self, email: str) -> Account | None:
+        stmt = select(Account).where(Account.email == email).with_for_update()
+        return self.db.scalars(stmt).first()
+
     def get_all(self) -> list[Account]:
         stmt = select(Account).order_by(Account.id)
         return list(self.db.scalars(stmt).all())
 ```
 
 AccountModule reads and writes only the `account` table.<br>
+`get_by_email_for_update()` reads with a row lock needed for the password reset flow.<br>
 It neither calls another Module nor converts results into response DTOs or calls `commit`.<br>
 Database operations use SQLAlchemy 2.x `select()` and `scalars()` instead of `Session.query()`.
 
@@ -423,17 +492,18 @@ class ListAccountSecurityUsecase:
 Query represents how data is read; Usecase represents the operation the application provides.<br>
 The thinness of this Usecase is not a problem.
 
-## Multiple Modules and External Operations
+## Multiple Modules and External I/O
 
 In a password-reset flow, Usecase handles two Modules and a mailer in this order:
 
 ```text
 ForgotPasswordUsecase
-  AccountModule.get_by_email()
-  PasswordResetTokenModule.invalidate_active_tokens()
-  PasswordResetTokenModule.create()
+  AccountModule.get_by_email_for_update()
+  PasswordResetTokenModule.count_created_today()
+  can_issue_password_reset()
+  issue_password_reset_token() → PasswordResetTokenModule invalidation and creation
   db.commit()
-  Mailer.send()
+  Mailer.send_password_reset()
 ```
 
 Because email is sent after the database `commit`, a delivery failure does not roll back the database change.<br>

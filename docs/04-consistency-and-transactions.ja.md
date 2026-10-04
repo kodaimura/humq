@@ -1,14 +1,14 @@
 # 整合性の扱い
 
 HUMQでは、複数テーブルの整合性とDBトランザクションの境界をUsecaseの責務として扱います。<br>
-この章では、その設計が引き受けるリスクと、Usecase、Module、DB、テストによる、<br>
+この章では、その設計が引き受けるリスクと、Usecase、内部処理、Module、DB、テストによる、<br>
 整合性の守り方を説明します。
 
 ## HUMQのトレードオフ
 
 HUMQは、複数テーブルの整合性を構造的には保証しません。<br>
 Handler、Usecase、Module、Queryの責務境界を正しく守っていても、<br>
-Usecaseが必要なModuleの呼び出しや整合性ルールを実装し忘れれば、<br>
+Usecaseが必要な業務処理の呼び出しや整合性ルールを実装し忘れれば、<br>
 不整合なデータがそのまま保存される可能性があります。
 
 これはHUMQの制約であり、軽量で明確な配置規則と引き換えに、<br>
@@ -19,11 +19,12 @@ Usecaseが必要なModuleの呼び出しや整合性ルールを実装し忘れ�
 
 ## 責務の分担
 
-- **Usecase**: 複数テーブルをまたぐ整合性、処理順序、失敗条件、トランザクション境界を持つ。
+- **Usecase**: 複数テーブルをまたぐ整合性の責任、主要な処理順序、失敗時の方針、トランザクション境界を持つ。
+- **分離する場合のUsecase内部の業務処理**: 意味のある判断・計算や整合性処理を担い、必要に応じてModuleとQueryを使う。トランザクション境界は所有しない。
 - **Module**: 原則として1テーブルの読み書きを提供し、`commit`や`rollback`を呼ばない。
 - **Query**: 読み取り専用とし、トランザクション境界を持たない。
 - **DB**: DBで表現できる制約と、同時更新を制御する仕組みを持つ。
-- **Test**: 業務上の分岐、失敗、`rollback`の振る舞いを検証する。
+- **Test**: 純粋な処理は単体テストし、DBを利用する処理は整合性、失敗、呼び出し元による`rollback`を検証する。
 
 ## トランザクション境界
 
@@ -32,31 +33,44 @@ Usecaseが必要なModuleの呼び出しや整合性ルールを実装し忘れ�
 
 例えば、注文の確定、在庫の引き当て、配信要求の登録が、<br>
 どれか1つでも欠けると不正な状態になるなら、同じトランザクションで扱います。
+次の概略コードでは、トランザクションの流れを示すためにModuleの準備と例外の定義を省略しています。
 
 ```python
 # usecases/orders/confirm_order.py
+from usecases.inventory._reservation import reserve_inventory
 
 def confirm_order(session, order_id: int) -> None:
     with session.begin():
         order = order_module.get_for_update(session, order_id)
         items = order_item_module.list_by_order(session, order_id)
-
-        for item in items:
-            updated = inventory_module.decrease_if_available(
-                session,
-                product_id=item.product_id,
-                quantity=item.quantity,
-            )
-            if not updated:
-                raise InsufficientInventory(item.product_id)
-
+        unavailable_product_id = reserve_inventory(session, items)
+        if unavailable_product_id is not None:
+            raise InsufficientInventory(unavailable_product_id)
         order_module.mark_confirmed(session, order.id)
         outbox_module.enqueue_order_confirmed(session, order.id)
 ```
 
-在庫が不足すれば例外が発生し、それまでの在庫更新、注文確定、<br>
-配信要求の登録はまとめて`rollback`されます。<br>
-どのModuleを組み合わせ、どの書き込みをまとめて成功または失敗させるかはUsecaseから確認できます。
+在庫引当は独立した業務上の意味を持つため、所有する領域の内部ファイルへ分離できます。
+
+```python
+# usecases/inventory/_reservation.py
+def reserve_inventory(session, items) -> int | None:
+    for item in items:
+        updated = inventory_module.decrease_if_available(
+            session,
+            product_id=item.product_id,
+            quantity=item.quantity,
+        )
+        if not updated:
+            return item.product_id
+    return None
+```
+
+内部処理は呼び出し元Usecaseと同じSessionを使い、トランザクション境界を所有しません。<br>
+在庫が不足するとUsecaseがトランザクション内で例外を出し、<br>
+それまでの在庫更新は`rollback`されます。注文確定と配信要求登録には進みません。<br>
+主要な順序とトランザクション境界はUsecaseから、<br>
+在庫引当の検証・変更対象は参照先から確認できます。
 
 HUMQは、`1 Usecase = 1 Transaction`を強制しません。<br>
 読み取りだけのUsecaseは、明示的なトランザクションを必要としない場合があります。<br>
@@ -71,7 +85,8 @@ Usecaseに処理を書いただけでは、更新漏れや同時更新による�
 在庫の減算など、複数のリクエストが同じデータを更新する処理には、<br>
 条件付き更新、行ロック、楽観ロックなど、必要な競合制御をModuleの操作として実装します。
 
-Usecaseは、その操作をどの業務条件で呼び、失敗をどう扱うかを明示します。
+Usecaseまたは明確に名付けた内部処理が、業務条件に応じてModule操作を呼びます。<br>
+失敗時の方針はUsecaseから追えるようにします。
 
 ## 外部システムとの整合性
 
@@ -85,20 +100,22 @@ Usecaseは、その操作をどの業務条件で呼び、失敗をどう扱う�
 Outboxを使う場合、Usecaseが保証するのは外部処理の完了ではなく、<br>
 DBの状態変更と配信要求の記録が一緒に成立することです。
 
-## 同じ不変条件が繰り返される場合
+## 内部処理と検証
 
-業務フローと整合性の判断は、原則として各Usecaseへ直接記述します。<br>
-ただし、同じ不変条件を複数Usecaseで守る必要があり、実装が分岐すると、<br>
-二重予約、在庫のマイナス、重複課金などの不整合につながる場合は、<br>
-例外的な回避策としてOperationへ集約できます。
+在庫引当や重複課金の防止など、独立して説明・検証・変更する意味がある処理は、<br>
+使用箇所が1つでもUsecase内部の業務処理として分離できます。<br>
+純粋な判断・計算にSessionは不要で、入力と結果を単体テストできます。<br>
+複数Usecaseで同じ不変条件を守る場合は、責任と参照先が分かる場所へ処理をまとめ、<br>
+検証、エラー、ロック、更新順序が分岐しないようにできます。<br>
+ただし、抽出や共通化だけでは全Usecaseによる呼び忘れを構造的には防げません。
 
-Operationは対象の不変条件の実装を1か所に保ち、<br>
-Usecaseごとの実装の分岐や、一部更新の漏れを防ぎます。<br>
-HUMQ全体へ整合性の構造的な保証を加えるものではなく、<br>
-実装の分岐を許容できない不変条件だけに使う例外です。
+DBを利用する内部処理は、呼び出し元Usecaseと同じSessionとトランザクションに参加し、<br>
+読み取りをModuleまたはQuery、書き込みをModuleへ委譲します。<br>
+ORMやSQLによる直接のデータ取得・永続化を行わず、独自のSessionやトランザクションを作りません。<br>
+`begin`、`commit`、`rollback`も行いません。境界と失敗時の方針はUsecaseが所有します。
 
-Operationは呼び出し元Usecaseと同じSessionへ参加し、書き込みを各Moduleへ委譲します。<br>
-自身では`begin`、`commit`、`rollback`を行わず、トランザクション境界の所有者は呼び出し元Usecaseのままです。
+DBを利用する処理は整合性要件と失敗時の振る舞いを検証します。<br>
+後続処理が失敗したときに、呼び出し元Usecaseが変更全体を`rollback`することもテストします。
 
 ---
 
