@@ -32,7 +32,7 @@ app/
 │   │   └── list.py
 │   ├── auth/
 │   │   ├── forgot_password.py
-│   │   ├── _reset_eligibility.py
+│   │   ├── _policies.py
 │   │   └── _token_issuance.py
 │   ├── organizations/
 │   │   └── _authorization.py
@@ -244,16 +244,19 @@ Moduleは`flush`によってSQLを実行できますが、トランザクショ�
 
 この例では業務処理を別ファイルに分けますが、HUMQは分離を要求しません。<br>
 使用箇所が1つでも、独立して説明・検証・変更する意味がある処理は、<br>
-この例のように、所有する業務領域のUsecaseと同じディレクトリに、業務上の意味を表す名前で分離できます。<br>
+この例のように、所有する業務領域のUsecaseと同じディレクトリに分離できます。<br>
+業務ルールを切り出す場合は`_policies.py`を初期案として推奨しますが、<br>
+`_token_issuance.py`のような具体的な名前も使えます。<br>
 横断的なルールなどのフォルダ構成は、利用側が選べます。<br>
-小さな局所的判断はUsecase内に残せます。内部処理のクラス化は必須ではありません。
+小さな局所的判断はUsecase内に残せます。内部処理のクラス化は必須ではありません。<br>
 この例のファイル名では、先頭の`_`で内部実装を示します。<br>
-配置や命名によらず、Handlerから直接呼ばず、公開Usecaseとして再exportしません。
+配置や命名によらず、Handlerから直接呼ばず、公開Usecaseとして再exportしません。<br>
+`_policies.py`は純粋な処理だけを置く分類でも、HUMQの別の層でもありません。
 
 次の発行可否判断は、渡された値だけを使う純粋な処理です。
 
 ```python
-# usecases/auth/_reset_eligibility.py
+# usecases/auth/_policies.py
 
 MAX_PASSWORD_RESET_REQUESTS_PER_DAY = 3
 
@@ -295,7 +298,7 @@ from app.error import AppError, ErrorCode
 from app.mailer import Mailer
 from app.modules.account.module import AccountModule
 from app.modules.password_reset_token.module import PasswordResetTokenModule
-from app.usecases.auth._reset_eligibility import can_issue_password_reset
+from app.usecases.auth._policies import can_issue_password_reset
 from app.usecases.auth._token_issuance import issue_password_reset_token
 
 

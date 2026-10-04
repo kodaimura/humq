@@ -21,14 +21,15 @@ affects how it is implemented and tested, not whether it may be extracted.
 
 ## Placement as a Domain Grows
 
-If processing is extracted, one starting point is to place files named for business meaning<br>
-directly in the owning domain's Usecase directory:
+If processing is extracted, a useful starting point is the owning domain's Usecase directory.<br>
+For business rules, the recommended starter filename is `_policies.py`; a cohesive process<br>
+may use a more specific name, as with pricing and inventory reservation below:
 
 ```text
 usecases/
 ├── orders/
 │   ├── cancel.py
-│   ├── _cancellation.py
+│   ├── _policies.py
 │   └── _pricing.py
 └── inventory/
     └── _reservation.py
@@ -43,7 +44,8 @@ A folder per Usecase or a shared folder for internal processing is a project cho
 Keep the primary flow traceable and avoid a catch-all of unrelated rules.<br>
 If files in one domain become difficult to scan, a folder within that domain may help.
 
-For an extracted file, use a business rule or processing name, normally `_<business-rule>.py`.<br>
+`_policies.py` is a naming recommendation for extracted rules, not a required Policy category<br>
+or a requirement for pure processing. More specific names such as `_pricing.py` are also valid.<br>
 No class or method naming pattern is required. Do not expose an internal file as a public Usecase.<br>
 See [Layer Rules](02-layer-rules.md#internal-business-processing) for data access and transaction rules.
 

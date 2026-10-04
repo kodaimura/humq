@@ -32,7 +32,7 @@ app/
 │   │   └── list.py
 │   ├── auth/
 │   │   ├── forgot_password.py
-│   │   ├── _reset_eligibility.py
+│   │   ├── _policies.py
 │   │   └── _token_issuance.py
 │   ├── organizations/
 │   │   └── _authorization.py
@@ -244,16 +244,18 @@ Module may execute SQL through `flush`, but it does not finalize the successful 
 ## Business Processing Within the Usecase Responsibility
 
 Even when used by just one Usecase, processing that is meaningful to explain, verify, and change independently<br>
-may be placed beside the Usecases in its owning business domain, in a file named for its business meaning.<br>
+may be placed beside the Usecases in its owning business domain. `_policies.py` is the recommended<br>
+starting name for extracted business rules; a more specific name such as `_token_issuance.py` is also valid.<br>
 These two internal files illustrate an optional choice; the decisions and Module calls may instead stay in the Usecase.<br>
 This is an example location; HUMQ leaves the placement of cross-domain processing to each project.<br>
 Small local decisions may remain in Usecase. Internal processing does not require a class.
 The leading `_` marks internal implementation; Handler does not call it directly, and it is not re-exported as a public Usecase.
+The `_policies.py` name does not require pure processing or create a separate HUMQ layer.
 
 The following eligibility decision is pure and uses only supplied values.
 
 ```python
-# usecases/auth/_reset_eligibility.py
+# usecases/auth/_policies.py
 
 MAX_PASSWORD_RESET_REQUESTS_PER_DAY = 3
 
@@ -295,7 +297,7 @@ from app.error import AppError, ErrorCode
 from app.mailer import Mailer
 from app.modules.account.module import AccountModule
 from app.modules.password_reset_token.module import PasswordResetTokenModule
-from app.usecases.auth._reset_eligibility import can_issue_password_reset
+from app.usecases.auth._policies import can_issue_password_reset
 from app.usecases.auth._token_issuance import issue_password_reset_token
 
 

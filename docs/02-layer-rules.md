@@ -91,12 +91,14 @@ After extraction, Usecase still shows the call, its purpose in the flow, and the
 ### Placement and Naming
 
 If processing is extracted, a useful starting point is a file directly in the Usecase directory of the business domain that owns it.<br>
-Name that file for the business rule or processing it contains, normally `_<business-rule>.py`.
+For extracted business rules, `usecases/<domain>/_policies.py` is the recommended starting point.<br>
+This is a filename convention, not a required Policy category or a rule that the processing must be pure.<br>
+When a more specific name makes the purpose easier to find, files such as `_pricing.py` and `_reservation.py` are also valid.
 
 | Processing | File |
 | --- | --- |
 | Order cancellation flow | `usecases/orders/cancel.py` |
-| Cancellation eligibility | `usecases/orders/_cancellation.py` |
+| Cancellation eligibility | `usecases/orders/_policies.py` |
 | Pricing | `usecases/orders/_pricing.py` |
 | Authorization | `usecases/organizations/_authorization.py` |
 | Inventory reservation | `usecases/inventory/_reservation.py` |

@@ -95,6 +95,8 @@ It fixes the responsibility boundaries of Handler, Usecase, Module, and Query,<b
 so where code belongs and where a change should be traced remain predictable as the business grows more complex.<br>
 Business processing may stay in Usecase. Separating it into a policy or other clearly named internal file is optional,<br>
 even when it merits independent explanation, verification, or change and only one Usecase uses it.<br>
+For an extracted business rule, `usecases/<domain>/_policies.py` is the recommended starting point,<br>
+not a required Policy category; a more specific filename may suit the processing.<br>
 An owning domain is a useful default for placement; teams choose where cross-domain processing is easiest to own and find.<br>
 The Usecase retains the purpose, main order, result branches, transaction boundaries, and external I/O policy.<br>
 Database-using internal processing joins the calling Usecase's Session and does not own a transaction boundary.<br>
