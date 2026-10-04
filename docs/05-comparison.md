@@ -207,9 +207,8 @@ and a simpler MVC or layered architecture may be sufficient.
 - Cross-table consistency depends on Usecase implementation, so an omitted rule can produce inconsistent data.
 
 HUMQ does not assume that consistency is unimportant.<br>
-It assumes that, in most real systems, only a minority of domains<br>
-require the structural protection provided by an Aggregate.<br>
-Under that assumption, HUMQ deliberately accepts the risk of omitted consistency enforcement<br>
+It primarily targets domains where protecting complex shared invariants is not central.<br>
+In those domains, HUMQ deliberately accepts the risk of omitted consistency enforcement<br>
 as the tradeoff for lightweight and explicit placement rules.
 
 Database constraints and tests reduce that risk, but do not make consistency enforcement complete by construction.<br>

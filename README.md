@@ -19,7 +19,7 @@ When chaos has no defined place, responsibility boundaries become ambiguous and 
 HUMQ calls this state, in which the placement of complexity has broken down, "distortion."
 
 HUMQ does not eliminate chaos. It allows necessary chaos within order<br>
-and prevents structural distortion by using responsibility boundaries to limit where it belongs and how far its effects may spread.
+and reduces structural distortion by using responsibility boundaries to limit where it belongs and how far its effects may spread.
 
 > **The structure narrows placement decisions and makes code easier to find.**
 

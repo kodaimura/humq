@@ -56,7 +56,6 @@ When several of the following appear, reconsider ownership and boundaries before
 - The business owner or reason to change for an internal file cannot be explained.
 - Unrelated processing accumulates in generic shared files.
 - Many layers of internal calls or cyclic cross-domain dependencies make the flow hard to follow.
-- Usecases do little more than call internal processing in order and then `commit`.
 - Primary branches, transaction boundaries, or external I/O disappear from Usecase.
 - Many tables must always be treated as one consistency boundary.
 - Protecting the same complex shared invariants becomes central to the domain.
