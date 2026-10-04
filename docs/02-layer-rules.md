@@ -167,6 +167,9 @@ or use this exception to broaden its normal read scope.
 - Communication with external systems
 - Hidden writes to another table through ORM cascades, hooks, or callbacks
 
+Preventing an inventory balance from becoming negative during an update is a Module constraint; deciding which order gets inventory first belongs in Usecase or its internal processing.<br>
+Placement depends not only on whether one table's values suffice, but also on whether the rule protects that table's state or update, or expresses a business decision for the operation.
+
 For example, `InvoiceModule` may create an invoice by reading an order and its items:
 
 ```sql

@@ -253,7 +253,7 @@ Moduleは`flush`によってSQLを実行できますが、トランザクショ�
 配置や命名によらず、Handlerから直接呼ばず、公開Usecaseとして再exportしません。<br>
 `_policies.py`は純粋な処理だけを置く分類でも、HUMQの別の層でもありません。
 
-次の発行可否判断は、渡された値だけを使う純粋な処理です。
+発行可否の条件は、渡された値だけを使う純粋な処理として分離できます。
 
 ```python
 # usecases/auth/_policies.py
@@ -272,7 +272,7 @@ def can_issue_password_reset(
     )
 ```
 
-一方、古いトークンの無効化と新しいトークンの発行は、DBを使う一つの業務処理として分離できます。<br>
+古いトークンを無効化して新しく作る詳細も、DBを使う一つの業務処理として分離できます。<br>
 呼び出し元Usecaseが同じSessionで作成したModuleを渡します。
 
 ```python
@@ -286,8 +286,8 @@ def issue_password_reset_token(tokens: PasswordResetTokenModule, account_id: int
     return tokens.create(account_id)
 ```
 
-Usecaseは対象アカウントのロック、判断の結果による分岐、発行処理の呼び出し、<br>
-トランザクション境界、メール送信の順序を示します。
+Usecaseには、対象アカウントのロック、発行不可の場合の扱い、トークン発行の呼び出し、<br>
+DB確定とメール送信の順序を示します。
 
 ```python
 # usecases/auth/forgot_password.py

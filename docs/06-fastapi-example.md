@@ -252,7 +252,7 @@ Small local decisions may remain in Usecase. Internal processing does not requir
 The leading `_` marks internal implementation; Handler does not call it directly, and it is not re-exported as a public Usecase.
 The `_policies.py` name does not require pure processing or create a separate HUMQ layer.
 
-The following eligibility decision is pure and uses only supplied values.
+The issuance conditions can be extracted as a pure decision using only supplied values.
 
 ```python
 # usecases/auth/_policies.py
@@ -271,7 +271,7 @@ def can_issue_password_reset(
     )
 ```
 
-Invalidating old tokens and issuing a new one can also be extracted as one database-backed business process.<br>
+The details of invalidating old tokens and creating a new one can also be extracted as one database-backed business process.<br>
 The calling Usecase supplies a Module created with the same Session.
 
 ```python
@@ -285,8 +285,8 @@ def issue_password_reset_token(tokens: PasswordResetTokenModule, account_id: int
     return tokens.create(account_id)
 ```
 
-Usecase shows the account lock, the branch based on the decision, the issuance call,<br>
-the transaction boundary, and the order of email delivery.
+Usecase shows the account lock, what happens when issuance is denied, the token issuance call,<br>
+and the order of database commit and email delivery.
 
 ```python
 # usecases/auth/forgot_password.py
